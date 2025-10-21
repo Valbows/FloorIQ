@@ -6,9 +6,9 @@ const PPSFComparisonChart = ({ property, comparables }) => {
   const prepareChartData = () => {
     const data = []
     
-    // Add current property
-    if (property.extracted_data?.square_footage && property.market_insights?.price_estimate?.estimated_value) {
-      const price = property.market_insights.price_estimate.estimated_value
+    // Add current property - use extracted_data path
+    if (property?.extracted_data?.square_footage && property?.extracted_data?.market_insights?.price_estimate?.estimated_value) {
+      const price = property.extracted_data.market_insights.price_estimate.estimated_value
       const sqft = property.extracted_data.square_footage
       const ppsf = Math.round(price / sqft)
       
@@ -98,7 +98,9 @@ const PPSFComparisonChart = ({ property, comparables }) => {
               value: 'Price per Sq Ft ($)', 
               angle: -90, 
               position: 'insideLeft',
-              style: { fill: '#666666', fontSize: 12 }
+              offset: 10,
+              textAnchor: 'middle',
+              style: { fill: '#666666', fontSize: 11, textAnchor: 'middle' }
             }}
           />
           <Tooltip content={<CustomTooltip />} />
@@ -114,7 +116,7 @@ const PPSFComparisonChart = ({ property, comparables }) => {
       </ResponsiveContainer>
       
       {/* Legend */}
-      <div className="flex items-center justify-center gap-4 mt-4 pt-4" style={{borderTop: '1px solid #E5E5E5'}}>
+      <div className="flex items-center justify-center gap-4 mt-2 pt-3" style={{borderTop: '1px solid #E5E5E5'}}>
         <div className="flex items-center gap-2">
           <div className="w-4 h-4 rounded" style={{background: '#FF5959'}}></div>
           <span className="text-xs" style={{color: '#666666'}}>Your Property</span>
