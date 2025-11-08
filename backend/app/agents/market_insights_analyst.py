@@ -14,13 +14,19 @@ import json
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 from crewai import Agent, Task, Crew
-from crewai.tools import tool
+from crewai_tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from tavily import TavilyClient
 from app.clients.attom_client import AttomAPIClient
+from app.utils.geocoding import normalize_address
 import asyncio
 import logging
 import time
+
+try:  # Optional dependency for direct Gemini calls
+    import google.generativeai as genai
+except ImportError:  # pragma: no cover - handled gracefully at runtime
+    genai = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -198,14 +204,28 @@ def scrape_property_data(address: str, city: str, state: str) -> str:
     try:
         # Import here to avoid circular imports
         from app.scrapers.multi_source_scraper import MultiSourceScraper
-        
-        # Run async scraper in sync context
+
+        norm = normalize_address(address)
+        street = (norm.get('street') or address).strip()
+        city_hint = (norm.get('city') or city or '').strip()
+        state_hint = (norm.get('state') or state or '').strip()
+        zip_hint = (norm.get('zip') or '').strip() or None
+        borough_hint = (norm.get('borough') or '').strip() or None
+        neighborhood_hint = (norm.get('neighborhood') or '').strip() or None
+
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-        
+
         async def run_scraper():
             async with MultiSourceScraper() as scraper:
-                return await scraper.scrape_property(address, city, state)
+                return await scraper.scrape_property(
+                    street,
+                    city_hint or borough_hint or city or '',
+                    state_hint,
+                    zip_code=zip_hint,
+                    borough=borough_hint,
+                    neighborhood=neighborhood_hint
+                )
         
         result = loop.run_until_complete(run_scraper())
         loop.close()
@@ -292,6 +312,21 @@ class MarketInsightsAnalyst:
             api_key=os.getenv('GEMINI_API_KEY'),  # LiteLLM expects GEMINI_API_KEY
             temperature=0.1
         )
+
+        # Configure direct Gemini client for schema-constrained generations
+        self.model: Optional[Any] = None
+        gemini_api_key = os.getenv('GEMINI_API_KEY')
+        if not gemini_api_key:
+            logger.warning("GEMINI_API_KEY not configured; ATTOM insights generation will rely on CrewAI fallback.")
+        elif genai is None:
+            logger.warning("google-generativeai package missing; install it to enable direct Gemini insights generation.")
+        else:
+            try:
+                genai.configure(api_key=gemini_api_key)
+                model_name = os.getenv('GEMINI_MARKET_INSIGHTS_MODEL', 'gemini-1.5-pro')
+                self.model = genai.GenerativeModel(model_name=model_name)
+            except Exception as err:
+                logger.warning("Failed to initialize Gemini GenerativeModel: %s", err)
         
         # Agent persona and expertise
         self.role = "Senior Real Estate Market Analyst"
@@ -364,8 +399,8 @@ class MarketInsightsAnalyst:
         Raises:
             Exception: If CorewAI execution fails
         """
+        property_data = property_data or {}
         try:
-            # Summarize pre-fetched ATTOM bundle when available (reduces need to refetch via tools)
             attom = property_data.get('attom', {}) or {}
             attom_prop = attom.get('property') or {}
             attom_avm = attom.get('avm') or {}
@@ -373,26 +408,51 @@ class MarketInsightsAnalyst:
             attom_trends_v4 = attom.get('sales_trends_v4') or {}
             attom_trends_zip = attom.get('sales_trends') or {}
             attom_comps = attom.get('comparables') or []
-            attom_lines = []
-            try:
-                if attom_prop:
-                    attom_lines.append(f"ATTOM Core: {attom_prop.get('address','N/A')} {attom_prop.get('city','')}, {attom_prop.get('state','')} {attom_prop.get('zip','')}")
-                    attom_lines.append(f"Beds/Baths/Sqft: {attom_prop.get('bedrooms','?')}/{attom_prop.get('bathrooms','?')}/{attom_prop.get('square_feet','?')}")
-                if attom_avm:
-                    attom_lines.append(f"AVM: ${attom_avm.get('estimated_value',0):,} (range ${attom_avm.get('value_range_low',0):,}-${attom_avm.get('value_range_high',0):,})")
-                if attom_area:
-                    mv = attom_area.get('median_home_value')
-                    attom_lines.append(f"Area Median Home Value: ${mv:,}" if mv else "Area stats present")
-                if (attom_trends_v4 or attom_trends_zip):
-                    attom_lines.append("Sales Trends: available (v4 or ZIP)")
-                if attom_comps:
-                    attom_lines.append(f"Comparables: {len(attom_comps)} candidates")
-            except Exception:
-                pass
-            attom_summary = "\n".join(attom_lines) if attom_lines else "No ATTOM bundle pre-fetched"
+            multi_source_bundle = property_data.get('multi_source') or {}
 
-            # Create simplified task for CrewAI (faster execution)
-            task_description = f"""
+            validated: Optional[MarketInsights] = None
+
+            if self.model and attom:
+                try:
+                    direct_data = self._generate_insights(
+                        property_data=property_data,
+                        attom_data=attom,
+                        comps=attom_comps,
+                        avm=attom_avm or None,
+                        trends=attom_trends_v4 or attom_trends_zip,
+                        area_stats=attom_area or None,
+                        parcel=attom.get('parcel'),
+                        multi_source=multi_source_bundle or None,
+                    )
+                    direct_data = self._sanitize_market_data(direct_data)
+                    validated = MarketInsights(**direct_data)
+                    print("[ATTOM] Direct Gemini market insights generated.")
+                except Exception as err:
+                    logger.warning("Direct ATTOM insights generation failed; falling back to CrewAI. Error: %s", err)
+                    validated = None
+
+            if validated is None:
+                # Summarize pre-fetched ATTOM bundle when available (reduces need to refetch via tools)
+                attom_lines = []
+                try:
+                    if attom_prop:
+                        attom_lines.append(f"ATTOM Core: {attom_prop.get('address','N/A')} {attom_prop.get('city','')}, {attom_prop.get('state','')} {attom_prop.get('zip','')}")
+                        attom_lines.append(f"Beds/Baths/Sqft: {attom_prop.get('bedrooms','?')}/{attom_prop.get('bathrooms','?')}/{attom_prop.get('square_feet','?')}")
+                    if attom_avm:
+                        attom_lines.append(f"AVM: ${attom_avm.get('estimated_value',0):,} (range ${attom_avm.get('value_range_low',0):,}-${attom_avm.get('value_range_high',0):,})")
+                    if attom_area:
+                        mv = attom_area.get('median_home_value')
+                        attom_lines.append(f"Area Median Home Value: ${mv:,}" if mv else "Area stats present")
+                    if (attom_trends_v4 or attom_trends_zip):
+                        attom_lines.append("Sales Trends: available (v4 or ZIP)")
+                    if attom_comps:
+                        attom_lines.append(f"Comparables: {len(attom_comps)} candidates")
+                except Exception:
+                    pass
+                attom_summary = "\n".join(attom_lines) if attom_lines else "No ATTOM bundle pre-fetched"
+
+                # Create simplified task for CrewAI (faster execution)
+                task_description = f"""
 Analyze property at: {address}
 
 Property: {property_data.get('bedrooms', 0)} bed, {property_data.get('bathrooms', 0)} bath, {property_data.get('square_footage', 0)} sqft
@@ -416,72 +476,77 @@ Return JSON with:
 
 Be concise. If data is unavailable, estimate based on property characteristics and note low confidence.
 """
-            
-            task = Task(
-                description=task_description,
-                agent=self.agent,
-                expected_output="Valid JSON object with comprehensive market analysis matching MarketInsights schema"
-            )
-            
-            # Create crew and execute
-            crew = Crew(
-                agents=[self.agent],
-                tasks=[task],
-                verbose=True
-            )
-            
-            print(f"[CrewAI] Starting market analysis for: {address}")
-            print(f"[DEBUG] About to call crew.kickoff()")
+                
+                task = Task(
+                    description=task_description,
+                    agent=self.agent,
+                    expected_output="Valid JSON object with comprehensive market analysis matching MarketInsights schema"
+                )
+                
+                # Create crew and execute
+                crew = Crew(
+                    agents=[self.agent],
+                    tasks=[task],
+                    verbose=True
+                )
+                
+                print(f"[CrewAI] Starting market analysis for: {address}")
+                print(f"[DEBUG] About to call crew.kickoff()")
 
-            # One-time retry with short backoff on rate limit/quota
-            try:
-                result = crew.kickoff(inputs={'address': address})
-            except Exception as e:
-                em = str(e).lower()
-                if any(tok in em for tok in ['ratelimit', 'quota', 'resource_exhausted', '429']):
-                    print("[CrewAI] Rate limited, retrying in ~2s...")
-                    time.sleep(2)
+                # One-time retry with short backoff on rate limit/quota
+                try:
                     result = crew.kickoff(inputs={'address': address})
-                else:
-                    raise
-            
-            print(f"[DEBUG] crew.kickoff() completed successfully")
-            print(f"[DEBUG] Result type: {type(result)}")
-            
-            # Parse result
-            result_text = str(result).strip()
-            
-            # DEBUG: Log raw result
-            print(f"[DEBUG] Raw CrewAI result (first 500 chars): {result_text[:500]}")
-            
-            # Extract JSON from markdown code blocks using regex
-            import re
-            json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', result_text, re.DOTALL)
-            if json_match:
-                result_text = json_match.group(1).strip()
-                print(f"[DEBUG] Extracted from markdown code block")
-            else:
-                # Try to find JSON without markdown (look for { to })
-                json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+                except Exception as e:
+                    em = str(e).lower()
+                    if any(tok in em for tok in ['ratelimit', 'quota', 'resource_exhausted', '429']):
+                        print("[CrewAI] Rate limited, retrying in ~2s...")
+                        time.sleep(2)
+                        result = crew.kickoff(inputs={'address': address})
+                    else:
+                        raise
+                
+                print(f"[DEBUG] crew.kickoff() completed successfully")
+                print(f"[DEBUG] Result type: {type(result)}")
+                
+                # Parse result
+                result_text = str(result).strip()
+                
+                # DEBUG: Log raw result
+                print(f"[DEBUG] Raw CrewAI result (first 500 chars): {result_text[:500]}")
+                
+                # Extract JSON from markdown code blocks using regex
+                import re
+                json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', result_text, re.DOTALL)
                 if json_match:
-                    result_text = json_match.group(0).strip()
-                    print(f"[DEBUG] Extracted raw JSON object")
+                    result_text = json_match.group(1).strip()
+                    print(f"[DEBUG] Extracted from markdown code block")
                 else:
-                    print(f"[DEBUG] No JSON pattern found in result")
-            
-            result_text = result_text.strip()
-            print(f"[DEBUG] Final JSON to parse (first 300 chars): {result_text[:300]}")
-            
-            # Parse JSON
-            insights_data = json.loads(result_text)
-            
-            print(f"[DEBUG] Parsed JSON successfully, sanitizing data types...")
-            
-            # Sanitize data to match schema types
-            insights_data = self._sanitize_market_data(insights_data)
-            
-            # Validate against schema
-            validated = MarketInsights(**insights_data)
+                    # Try to find JSON without markdown (look for { to })
+                    json_match = re.search(r'\{.*\}', result_text, re.DOTALL)
+                    if json_match:
+                        result_text = json_match.group(0).strip()
+                        print(f"[DEBUG] Extracted raw JSON object")
+                    else:
+                        print(f"[DEBUG] No JSON pattern found in result")
+                
+                result_text = result_text.strip()
+                print(f"[DEBUG] Final JSON to parse (first 300 chars): {result_text[:300]}")
+                
+                # Parse JSON
+                insights_data = json.loads(result_text)
+                
+                print(f"[DEBUG] Parsed JSON successfully, sanitizing data types...")
+                
+                # Sanitize data to match schema types
+                insights_data = self._sanitize_market_data(insights_data)
+                
+                # Validate against schema
+                validated = MarketInsights(**insights_data)
+
+            if validated is None:
+                raise ValueError("Market insights generation returned no data.")
+
+            print(f"[DEBUG] Validation successful!")
 
             # Compute price_per_sqft deterministically when sqft is available and field missing
             try:
@@ -863,61 +928,155 @@ Be concise. If data is unavailable, estimate based on property characteristics a
             return results
         return results
     
-    def _generate_insights(self, property_data: Dict, corelogic_data: Dict, 
-                          comps: List[Dict], avm: Optional[Dict]) -> Dict[str, Any]:
-        """
-        Use Gemini AI to generate market insights from data
-        
-        Args:
-            property_data: Floor plan data
-            corelogic_data: CoreLogic property info
-            comps: Comparable properties
-            avm: AVM estimate (if available)
-        
-        Returns:
-            Structured market insights
-        """
-        # Build comprehensive prompt with all data
+    def _generate_insights(
+        self,
+        property_data: Dict,
+        attom_data: Dict,
+        comps: List[Dict],
+        avm: Optional[Dict],
+        trends: Optional[Dict] = None,
+        area_stats: Optional[Dict] = None,
+        parcel: Optional[Dict] = None,
+        multi_source: Optional[Dict] = None,
+    ) -> Dict[str, Any]:
+        """Use Gemini AI to generate market insights from ATTOM + floor plan data."""
+
+        attom_property = (attom_data or {}).get('property') or {}
+        attom_details = (attom_data or {}).get('details') or {}
+        sales_trends_v4 = trends or (attom_data or {}).get('sales_trends_v4') or {}
+        sales_trends_zip = (attom_data or {}).get('sales_trends') or {}
+        area = area_stats or (attom_data or {}).get('area_stats') or {}
+        parcel_info = parcel or (attom_data or {}).get('parcel') or {}
+        multi = multi_source or (attom_data or {}).get('multi_source') or {}
+
+        attom_address = attom_property.get('address') or attom_property.get('oneLine')
+        attom_city = attom_property.get('city') or attom_property.get('locality')
+        attom_state = attom_property.get('state') or attom_property.get('countrySubd')
+        attom_zip = attom_property.get('zip') or attom_property.get('postal1')
+
+        def _format_trends(tr_data: Dict, label: str) -> str:
+            if not tr_data:
+                return f"{label}: Not available"
+            try:
+                trends_arr = tr_data.get('trends') or tr_data.get('trend') or []
+                if isinstance(trends_arr, list) and trends_arr:
+                    latest = trends_arr[0]
+                    price = latest.get('medianSalePrice') or latest.get('median_price')
+                    dom = latest.get('daysOnMarket') or latest.get('average_days_on_market')
+                    yoy = latest.get('yearOverYear') or latest.get('year_over_year_change')
+                    return (
+                        f"{label}: median ${price:,} | DOM {dom} | YoY {yoy}%"
+                        if price or dom or yoy
+                        else f"{label}: data available"
+                    )
+            except Exception:
+                pass
+            return f"{label}: data available"
+
+        def _format_area_stats(stats: Dict) -> str:
+            if not stats:
+                return "Area stats unavailable"
+            parts = []
+            median_value = stats.get('median_home_value') or stats.get('medianPrice')
+            if median_value:
+                parts.append(f"Median value ${median_value:,}")
+            rent = stats.get('median_rent')
+            if rent:
+                parts.append(f"Median rent ${rent:,}")
+            turnover = stats.get('turnover_rate')
+            if turnover:
+                parts.append(f"Turnover {turnover}%")
+            vacancy = stats.get('vacancy_rate')
+            if vacancy:
+                parts.append(f"Vacancy {vacancy}%")
+            return " | ".join(parts) if parts else "Area stats available"
+
+        def _format_parcel(info: Dict) -> str:
+            if not info:
+                return "Parcel data unavailable"
+            lot = info.get('lot_size_sqft') or info.get('lot_size_acres')
+            zoning = info.get('zoning')
+            geo = info.get('geo') or {}
+            lat = geo.get('latitude')
+            lon = geo.get('longitude')
+            details = []
+            if lot:
+                if isinstance(lot, (int, float)) and lot > 100:
+                    details.append(f"Lot {lot:,} sqft")
+                else:
+                    details.append(f"Lot size {lot}")
+            if zoning:
+                details.append(f"Zoning {zoning}")
+            if lat and lon:
+                details.append(f"Geo ({lat}, {lon})")
+            return " | ".join(details) if details else "Parcel data available"
+
+        def _format_multi_source(ms: Dict) -> str:
+            if not ms:
+                return "Multi-source scraping not available"
+            sources = ms.get('sources') or {}
+            summary = ms.get('pricing_consensus')
+            parts = []
+            if summary and isinstance(summary, dict):
+                avg = summary.get('average_price')
+                if avg:
+                    parts.append(f"Consensus avg ${avg:,}")
+            for src_name, payload in sources.items():
+                if not isinstance(payload, dict):
+                    continue
+                price = payload.get('price') or payload.get('list_price')
+                if price:
+                    parts.append(f"{src_name.title()} price ${price:,}")
+            return " | ".join(parts) if parts else "Multi-source scraping available"
+
         prompt = f"""
 {self.expertise}
 
-SUBJECT PROPERTY ANALYSIS REQUEST:
+SUBJECT PROPERTY ANALYSIS REQUEST (ATTOM + AI data)
 
-PROPERTY DETAILS:
-- Address: {corelogic_data.get('address', 'Not specified')}
-- City: {corelogic_data.get('city', 'Not specified')}
-- Property Type: {corelogic_data.get('property_type', 'Not specified')}
-- Year Built: {corelogic_data.get('year_built', 'Not specified')}
+ATTOM PROPERTY SNAPSHOT:
+- Address: {attom_address or property_data.get('address', 'Not specified')}
+- City/State/ZIP: {attom_city or 'N/A'}, {attom_state or 'N/A'} {attom_zip or ''}
+- Property Type: {attom_property.get('property_type') or attom_property.get('propertyType') or 'Not specified'}
+- Year Built: {attom_property.get('year_built') or attom_property.get('yearBuilt') or 'Not specified'}
+- Beds/Baths/Sqft: {attom_property.get('bedrooms') or property_data.get('bedrooms', '?')}/{attom_property.get('bathrooms') or property_data.get('bathrooms', '?')}/{attom_property.get('square_feet') or property_data.get('square_footage', '?')}
+- Last Sale: {attom_property.get('last_sale_date') or attom_property.get('lastSaleDate') or 'N/A'} @ ${attom_property.get('last_sale_price') or attom_property.get('lastSalePrice') or 'N/A'}
+- Assessed Value: ${attom_property.get('assessed_value') or attom_property.get('assessedValue') or 'N/A'}
+
+ATTOM DETAIL HIGHLIGHTS:
+- Building: {attom_details.get('building', {}).get('style') or attom_details.get('building', {}).get('constructionType') or 'N/A'}
+- Lot: {(attom_details.get('lot', {}) or {}).get('lotsize2') or (attom_details.get('lot', {}) or {}).get('lotsize1') or 'N/A'}
+- Parcel: {_format_parcel(parcel_info)}
+
+MARKET STATS:
+- { _format_trends(sales_trends_v4, 'ATTOM Geo Trends') }
+- { _format_trends(sales_trends_zip, 'ZIP Trends') }
+- { _format_area_stats(area) }
 
 FLOOR PLAN DATA (from AI analysis):
 - Bedrooms: {property_data.get('bedrooms', 0)}
 - Bathrooms: {property_data.get('bathrooms', 0)}
 - Square Footage: {property_data.get('square_footage', 0)}
 - Layout: {property_data.get('layout_type', 'Not specified')}
-- Features: {', '.join(property_data.get('features', []))}
+- Features: {', '.join(property_data.get('features', [])) or 'N/A'}
 
-COMPARABLE SALES (last 6 months):
+MULTI-SOURCE WEB SCRAPING:
+- {_format_multi_source(multi)}
+
+COMPARABLE SALES (last 6-12 months):
 {self._format_comps(comps)}
 
 AVM ESTIMATE:
 {self._format_avm(avm) if avm else 'Not available'}
 
-LAST SALE INFO:
-- Sale Date: {corelogic_data.get('last_sale_date', 'Not available')}
-- Sale Price: ${corelogic_data.get('last_sale_price', 0):,}
-
-ASSESSED VALUE: ${corelogic_data.get('assessed_value', 0):,}
-
 ANALYSIS REQUIRED:
-1. Price Estimate: Provide detailed valuation with confidence level and reasoning
-2. Market Trend: Analyze local market conditions, appreciation rates, and inventory
-3. Investment Analysis: Score investment potential (1-100), rental income estimate, cap rate, risks, and opportunities
-4. Executive Summary: Synthesize all findings into actionable insights
+1. Price Estimate: Provide detailed valuation with confidence level and reasoning.
+2. Market Trend: Analyze local market conditions, appreciation rates, and inventory.
+3. Investment Analysis: Score investment potential (1-100), rental income estimate, cap rate, risks, and opportunities.
+4. Executive Summary: Synthesize all findings into actionable insights.
 
-Provide data-driven analysis based on the comparable sales, market trends, and property characteristics. 
-Be specific with numbers and reasoning. Consider location, condition, features, and market timing.
-
-Respond with a comprehensive market analysis in JSON format following the MarketInsights schema.
+Use ATTOM as primary source. Reference multi-source scraping or web data only for gaps or validation.
+Return strict JSON adhering to the MarketInsights schema.
 """
 
         try:
@@ -928,16 +1087,13 @@ Respond with a comprehensive market analysis in JSON format following the Market
                     response_schema=MarketInsights
                 )
             )
-            
-            # Parse and return structured insights
+
             import json
+
             insights_data = json.loads(response.text)
-            
-            # Add comps list to response
             insights_data['comparable_properties'] = comps
-            
             return insights_data
-            
+
         except Exception as e:
             raise Exception(f"AI market analysis failed: {str(e)}")
     

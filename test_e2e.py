@@ -136,7 +136,7 @@ def verify_results(property_data):
         'floor_plan_analysis': False,
         'market_insights': False,
         'listing_copy': False,
-        'corelogic_used': False
+        'attom_used': False
     }
     
     # Check floor plan analysis
@@ -155,14 +155,23 @@ def verify_results(property_data):
         print(f"✅ Market Insights: ${price_estimate.get('estimated_value'):,} estimated value")
         print(f"   Confidence: {price_estimate.get('confidence')}")
         
-        # Check if CoreLogic was used
-        reasoning = price_estimate.get('reasoning', '')
-        if 'CoreLogic data unavailable' in reasoning or 'web search' in reasoning.lower():
-            results['corelogic_used'] = False
-            print(f"⚠️  CoreLogic: Used fallback (web search)")
+        # Check if ATTOM data sources were used
+        data_sources = (
+            property_data.get('data_sources')
+            or property_data.get('extracted_data', {}).get('data_sources')
+            or {}
+        )
+        attom_flags = [
+            data_sources.get('attom_property'),
+            data_sources.get('attom_details'),
+            data_sources.get('attom_avm'),
+            data_sources.get('attom_area'),
+        ]
+        if any(flag for flag in attom_flags):
+            results['attom_used'] = True
+            print("✅ ATTOM: Property bundle present")
         else:
-            results['corelogic_used'] = True
-            print(f"✅ CoreLogic: Successfully retrieved property data")
+            print("⚠️  ATTOM: No bundle detected (fallback data)")
     else:
         print(f"❌ Market Insights: No data")
     
@@ -213,10 +222,10 @@ def main():
     
     if all_passed:
         print("✅ ALL TESTS PASSED")
-        if results['corelogic_used']:
-            print("✅ CoreLogic integration working!")
+        if results['attom_used']:
+            print("✅ ATTOM data integrated")
         else:
-            print("⚠️  CoreLogic unavailable (using fallback)")
+            print("⚠️  ATTOM data missing (fallback path)")
         sys.exit(0)
     else:
         print("❌ SOME TESTS FAILED")

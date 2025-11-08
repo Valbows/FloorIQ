@@ -8,6 +8,8 @@ This test uses actual data from the database including the 1,415 sqft test floor
 import os
 import sys
 from pathlib import Path
+
+import pytest
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -233,13 +235,7 @@ def create_mock_properties_for_testing():
         ),
     ]
 
-
-def test_extract_from_database():
-    """Test extracting property features from actual database"""
-    print("\n" + "="*70)
-    print("TEST 1: Extract Property Features from Database")
-    print("="*70)
-    
+def _extract_features_from_database():
     try:
         db = get_admin_db()
         model = PropertyRegressionModel(db_client=db)
@@ -267,53 +263,99 @@ def test_extract_from_database():
             print(f"   - Quality Score: {sample.quality_score}/100")
         
         return features_list
-    
     except Exception as e:
         print(f"❌ Error extracting from database: {e}")
-        print("   Using mock data for testing instead")
         return None
 
 
-def test_build_regression_model(features_list):
-    """Test building regression model"""
+@pytest.fixture(scope="module")
+def features_list():
+    """Fetch features from DB (preferred) or mock fallback for regression tests."""
+    print("\n" + "="*70)
+    print("TEST 1: Extract Property Features from Database")
+    print("="*70)
+
+    features = _extract_features_from_database()
+
+    if features:
+        print(f"✅ Extracted {len(features)} properties from database")
+        sample = features[0]
+        print(f"\n   Sample Property:")
+        print(f"   - ID: {sample.property_id}")
+        print(f"   - Bedrooms: {sample.bedrooms}")
+        print(f"   - Bathrooms: {sample.bathrooms}")
+        print(f"   - Total Sqft: {sample.total_sqft:,}")
+        print(f"   - Room Count: {sample.room_count}")
+        print(f"   - Has Garage: {'Yes' if sample.has_garage else 'No'}")
+        print(f"   - Quality Score: {sample.quality_score}/100")
+    else:
+        print("   Using mock data for testing instead")
+        features = create_mock_properties_for_testing()
+
+    if len(features) < 5:
+        print("\n⚠️  Insufficient database data, augmenting with mock properties")
+        features = create_mock_properties_for_testing()
+
+    return features
+
+
+@pytest.fixture(scope="module")
+def regression_context(features_list):
+    """Train regression model once for downstream tests."""
     print("\n" + "="*70)
     print("TEST 2: Build Regression Model")
     print("="*70)
-    
-    if not features_list or len(features_list) < 5:
-        print("\n⚠️  Insufficient database data, using mock properties")
-        features_list = create_mock_properties_for_testing()
-    
+
     print(f"\n⏳ Training model on {len(features_list)} properties...")
-    
+
     model = PropertyRegressionModel()
     results = model.build_room_dimension_model(features_list, model_type='ridge')
-    
+
     if not results:
-        print("❌ Failed to build model")
-        return None, None
-    
-    print(f"✅ Model trained successfully!")
+        pytest.fail("Failed to build regression model")
+
+    print("✅ Model trained successfully!")
     print(f"\n   Model Performance:")
     print(f"   - R² Score: {results.r2_score:.3f} (higher is better, max 1.0)")
     print(f"   - MAE: ${results.mae:,.0f} (mean absolute error)")
     print(f"   - RMSE: ${results.rmse:,.0f} (root mean squared error)")
     print(f"   - CV Score: {sum(results.cross_val_scores)/len(results.cross_val_scores):.3f}")
-    
+
     print(f"\n   Top 5 Most Important Features:")
     sorted_features = sorted(results.feature_importance.items(), key=lambda x: x[1], reverse=True)
     for i, (feature, importance) in enumerate(sorted_features[:5], 1):
         print(f"   {i}. {feature}: {importance:.3f} ({importance*100:.1f}%)")
-    
-    return model, features_list
+
+    return {
+        "model": model,
+        "features": features_list,
+        "results": results
+    }
 
 
-def test_price_prediction(model, features_list):
+def test_extract_from_database(features_list):
+    """Ensure we have property features to train on."""
+    assert features_list
+    assert len(features_list) >= 5
+
+
+def test_build_regression_model(regression_context):
+    """Validate regression training outputs key metrics."""
+    results = regression_context["results"]
+    assert results.r2_score is not None
+    assert isinstance(results.cross_val_scores, list)
+    assert len(results.cross_val_scores) > 0
+
+
+def test_price_prediction(regression_context):
     """Test price prediction for test floor plan"""
     print("\n" + "="*70)
     print("TEST 3: Price Prediction for Test Floor Plan (1,415 sqft)")
     print("="*70)
     
+    model = regression_context["model"]
+    features_list = regression_context["features"]
+
     # Find our test floor plan or use mock
     test_property = None
     for prop in features_list:
@@ -338,7 +380,7 @@ def test_price_prediction(model, features_list):
     
     if not predicted_price:
         print("❌ Price prediction failed")
-        return
+        pytest.fail("Price prediction returned None")
     
     print(f"\n✅ Predicted Price: ${predicted_price:,.0f}")
     
@@ -353,7 +395,7 @@ def test_price_prediction(model, features_list):
     print(f"   Price per Sqft: ${price_per_sqft:.2f}")
 
 
-def test_sqft_impact(model):
+def test_sqft_impact(regression_context):
     """Test 'Each 1ft adds $X/sqft' calculation"""
     print("\n" + "="*70)
     print("TEST 4: Square Footage Impact Calculation")
@@ -361,11 +403,12 @@ def test_sqft_impact(model):
     
     print("\n⏳ Calculating price impact per square foot...")
     
+    model = regression_context["model"]
     sqft_impact = model.calculate_sqft_impact()
     
     if not sqft_impact:
         print("❌ Could not calculate sqft impact")
-        return
+        pytest.fail("Square footage impact calculation failed")
     
     print(f"✅ Each additional square foot adds: ${sqft_impact:.2f}")
     print(f"\n   Examples:")
@@ -374,12 +417,15 @@ def test_sqft_impact(model):
     print(f"   - 1,000 sqft larger: ${sqft_impact * 1000:+,.0f}")
 
 
-def test_property_comparison(model, features_list):
+def test_property_comparison(regression_context):
     """Test property comparison: 3BR/2BA vs 3BR/1.5BA"""
     print("\n" + "="*70)
     print("TEST 5: Property Comparison (3BR/2BA vs 3BR/1.5BA)")
     print("="*70)
     
+    model = regression_context["model"]
+    features_list = regression_context["features"]
+
     # Find properties to compare
     prop_3br_2ba = None
     prop_3br_1_5ba = None

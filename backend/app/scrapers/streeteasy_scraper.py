@@ -4,7 +4,7 @@ Scrapes property data from StreetEasy.com using Bright Data
 """
 
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from .base_scraper import BaseScraper
 
 logger = logging.getLogger(__name__)
@@ -25,14 +25,41 @@ class StreetEasyScraper(BaseScraper):
     
     BASE_URL = "https://streeteasy.com"
     
-    async def search_property(self, address: str, city: str, state: str) -> Dict[str, Any]:
+    async def search_property(
+        self,
+        address: str,
+        city: str,
+        state: str,
+        zip_code: Optional[str] = None,
+        neighborhood: Optional[str] = None,
+        borough: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Search for a property on StreetEasy"""
         # Build search URL (StreetEasy is NYC-focused)
-        search_address = f"{address} {city} NY".replace(' ', '+')
+        city_hint = (city or '').strip()
+        borough_hint = (borough or '').strip()
+        neighborhood_hint = (neighborhood or '').strip()
+        zip_hint = (zip_code or '').strip()
+
+        search_parts = [address]
+        if neighborhood_hint:
+            search_parts.append(neighborhood_hint)
+        if city_hint:
+            search_parts.append(city_hint)
+        elif borough_hint:
+            search_parts.append(borough_hint)
+        else:
+            search_parts.append('New York')
+        if zip_hint:
+            search_parts.append(zip_hint)
+
+        search_string = ' '.join(filter(None, search_parts)).strip()
+        search_address = search_string.replace(' ', '+')
         search_url = f"{self.BASE_URL}/search?search_string={search_address}"
         
         try:
-            self.log_scraping_result(True, f"Searching StreetEasy for {address}, {city}, {state}")
+            log_city = neighborhood_hint or city_hint or borough_hint or city or 'NYC'
+            self.log_scraping_result(True, f"Searching StreetEasy for {address}, {log_city}, {state}")
             
             if not self.client:
                 raise Exception("Scraping client not initialized")

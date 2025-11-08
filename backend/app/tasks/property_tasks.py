@@ -8,7 +8,7 @@ from app.utils.supabase_client import get_admin_db
 from app.agents.floor_plan_analyst import FloorPlanAnalyst
 import requests
 from app.clients.attom_client import AttomAPIClient
-from app.utils.geocoding import normalize_address
+from app.utils.geocoding import normalize_address, NYC_BOROUGHS
 import re
 import os
 import asyncio
@@ -128,7 +128,7 @@ def enrich_property_data_task(self, property_id: str):
     
     Uses AI Agent #2 (Market Insights Analyst) to:
     1. Fetch property data from database
-    2. Query CoreLogic API for comps and AVM
+    2. Query ATTOM API for property details, comparables, AVM, and trends
     3. Run AI market analysis
     4. Generate price estimate and investment insights
     5. Update property with market_insights
@@ -170,16 +170,20 @@ def enrich_property_data_task(self, property_id: str):
             norm = normalize_address(address)
             street = (norm.get('street') or address).strip()
             city_norm = (norm.get('city') or '').strip() or None
+            borough_norm = (norm.get('borough') or '').strip() or None
             state_norm = (norm.get('state') or '').strip() or None
             zip_norm = (norm.get('zip') or '').strip() or None
-            print(f"[ATTOM] Normalized address => street='{street}', city='{city_norm}', state='{state_norm}', zip='{zip_norm}'")
+            city_for_attom = city_norm
+            if borough_norm:
+                city_for_attom = borough_norm
+            print(f"[ATTOM] Normalized address => street='{street}', city='{city_norm}', borough='{borough_norm}', state='{state_norm}', zip='{zip_norm}'")
 
             # Use structured search when possible; fallback to unstructured
             try:
                 # Strip unit/suite designators from street for ATTOM matching
                 street_clean = re.sub(r"\s+(apt|unit|ste|suite|bldg|fl|floor|#)\b.*$", "", street, flags=re.IGNORECASE).strip()
-                if city_norm and state_norm:
-                    prop_core = client.search_property(street_clean, city=city_norm, state=state_norm, zip_code=zip_norm)
+                if city_for_attom and state_norm:
+                    prop_core = client.search_property(street_clean, city=city_for_attom, state=state_norm, zip_code=zip_norm)
                 else:
                     prop_core = client.search_property(street_clean)
             except Exception as e:
@@ -219,7 +223,7 @@ def enrich_property_data_task(self, property_id: str):
                 details = client.get_property_details(attom_id)
             avm = None
             try:
-                city = city_norm or prop_core.get('city')
+                city = city_for_attom or prop_core.get('city')
                 state = state_norm or prop_core.get('state')
                 zip_code = zip_norm or prop_core.get('zip')
                 if city and state:
@@ -237,7 +241,7 @@ def enrich_property_data_task(self, property_id: str):
             # Comparables (deterministic) – fetch even if LLM omits
             comps = None
             try:
-                city_for_comps = city_norm or prop_core.get('city')
+                city_for_comps = city_for_attom or prop_core.get('city')
                 state_for_comps = state_norm or prop_core.get('state')
                 if city_for_comps and state_for_comps:
                     comps_address = street_clean if 'street_clean' in locals() else (street or prop_core.get('address') or address)
@@ -252,7 +256,7 @@ def enrich_property_data_task(self, property_id: str):
             # Compute ZIP early so we can fallback even if v4 is configured
             zip_for_trends = prop_core.get('zip') or zip_norm
             # Resolve a regional geoIdV4 when not explicitly configured
-            city_for_geo = city_norm or prop_core.get('city')
+            city_for_geo = city_for_attom or prop_core.get('city')
             state_for_geo = state_norm or prop_core.get('state')
             county_for_geo = (prop_core or {}).get('county')
             resolved_geo_v4 = None
@@ -410,7 +414,14 @@ def enrich_property_data_task(self, property_id: str):
                 asyncio.set_event_loop(loop)
                 async def run_ms():
                     async with MultiSourceScraper() as ms:
-                        return await ms.scrape_property(street, city_norm or (prop_core or {}).get('city') or '', state_norm or (prop_core or {}).get('state') or '')
+                        return await ms.scrape_property(
+                            street,
+                            city_norm or (prop_core or {}).get('city') or borough_norm or '',
+                            state_norm or (prop_core or {}).get('state') or '',
+                            zip_code=zip_norm or (prop_core or {}).get('zip'),
+                            borough=borough_norm or ((prop_core or {}).get('city') if (prop_core or {}).get('city') and str((prop_core or {}).get('city')).upper() in NYC_BOROUGHS else None),
+                            neighborhood=norm.get('neighborhood')
+                        )
                 ms_result = loop.run_until_complete(run_ms())
                 loop.close()
                 if ms_result:
@@ -638,7 +649,7 @@ def process_property_workflow(property_id: str):
        - Status: processing → parsing_complete
     
     2. Market insights enrichment (Agent #2: Market Insights Analyst)
-       - CoreLogic API for comps and AVM
+       - ATTOM API bundle for property, comps, AVM, and market stats
        - Price estimation and investment analysis
        - Status: parsing_complete → enrichment_complete
     

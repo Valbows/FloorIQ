@@ -11,7 +11,7 @@
 
 1. ✅ Fix Phase 2 workflow bugs
 2. ✅ Update documentation (README)
-3. ✅ Configure CoreLogic API credentials
+3. ✅ Configure ATTOM API connectivity
 4. ✅ Test complete 3-agent workflow
 5. ✅ Begin Phase 3 frontend development
 
@@ -40,10 +40,10 @@
 **Root Cause**: Celery `.s()` signature was passing previous task results as arguments  
 **Solution**: Changed from `.s()` to `.si()` (immutable signature)
 
-### Bug #3: CoreLogic API URL Mismatch
-**Problem**: CoreLogic authentication failing with 404 error  
-**Root Cause**: Client hardcoded to `https://api.corelogic.com` but env had `https://api-prod.corelogic.com`  
-**Solution**: Made API URLs configurable via `CORELOGIC_API_URL` environment variable
+### Bug #3: ATTOM API Base URL Mismatch
+**Problem**: ATTOM address lookup failing with 404 error  
+**Root Cause**: Client hardcoded to trial endpoint that differed from `https://api.gateway.attomdata.com/propertyapi/v1.0.0`  
+**Solution**: Centralized ATTOM base URL configuration and shared it across all client helpers
 
 ---
 
@@ -59,11 +59,11 @@
 2. **Tech Stack Clarified**:
    - Updated AI models (Gemini 2.0 Flash)
    - Added Pydantic 2.0 for structured output
-   - Clarified CoreLogic OAuth2 integration
+   - Documented ATTOM API integration
 
 3. **New Sections Added**:
    - Complete `.env` template with all required variables
-   - CoreLogic API setup instructions (Step 7 in Quick Start)
+   - ATTOM API setup instructions (Step 7 in Quick Start)
    - AI Agent Workflow visualization (detailed 3-agent pipeline)
    - Phase 2 workflow testing instructions
 
@@ -92,15 +92,15 @@
 python3 test_phase2_workflow.py
 ```
 
-### 2. CoreLogic Test Script
-**File**: `test_with_corelogic.sh` (188 lines)
+### 2. ATTOM Workflow Test Script
+**File**: `test_attom_workflow.sh`
 
 **Features**:
 - Bash script for comprehensive testing
 - Tests with real property address (Google HQ)
 - Monitors status progression
 - Displays all agent outputs
-- Shows CoreLogic vs fallback logic usage
+- Highlights ATTOM vs fallback logic usage
 
 ### 3. Manual Testing Documentation
 **File**: `TEST_COMMANDS.md` (350+ lines)
@@ -134,7 +134,7 @@ Agent #2: Market Insights Analyst (~1-3s)
     ✅ Generates price estimates
     ✅ Creates investment score
     ✅ Analyzes market trends
-    ✅ Fallback logic works (without CoreLogic)
+    ✅ Fallback logic works (without ATTOM data)
     ↓
 Agent #3: Listing Copywriter (~1-3s)
     ✅ Generates headlines
@@ -315,10 +315,10 @@ Complete (~6 seconds total)
 | **Frontend Components Enhanced** | 1 (major) |
 
 ### Commits Made
-1. `Phase 2: AI Agents 2 and 3 plus CoreLogic API integration`
+1. `Phase 2: AI Agents 2 and 3 plus ATTOM API integration`
 2. `Fix Phase 2 workflow bugs and add test suite`
 3. `Update README - Phase 2 complete documentation`
-4. `Fix CoreLogic API URL configuration + add test script`
+4. `Fix ATTOM API base URL configuration + add test script`
 5. `Critical Fix: Celery chain argument passing - Phase 2 WORKING`
 6. `Phase 3: Enhanced PropertyDetail with Agent 2 and 3 data display`
 
@@ -341,7 +341,7 @@ Complete (~6 seconds total)
 - User authentication
 
 ### Phase 2: AI Enrichment ✅ COMPLETE
-- CoreLogic API integration
+- ATTOM API integration
 - Market Insights Agent (#2)
 - Listing Copywriter Agent (#3)
 - 3-agent workflow pipeline
@@ -366,7 +366,7 @@ Complete (~6 seconds total)
    - Extracts rooms, dimensions, features
    - Calculates square footage
 3. **Agent #2** enriches with market data (15-30s)
-   - Fetches CoreLogic comps (or uses fallback)
+   - Fetches ATTOM property bundle and comps (or uses fallback)
    - Generates price estimates
    - Creates investment analysis
 4. **Agent #3** generates listing copy (10-20s)
@@ -419,7 +419,7 @@ Complete (~6 seconds total)
 python3 test_phase2_workflow.py
 
 # Or use bash script
-./test_with_corelogic.sh
+./test_attom_workflow.sh
 
 # Monitor Celery logs
 docker logs -f ai-floorplan-celery
@@ -430,7 +430,7 @@ docker logs -f ai-floorplan-celery
 ## 📁 New Files Created
 
 1. `test_phase2_workflow.py` - Automated Python test (400+ lines)
-2. `test_with_corelogic.sh` - Bash test script (188 lines)
+2. `test_attom_workflow.sh` - Bash test script (renamed legacy script)
 3. `TEST_COMMANDS.md` - Testing documentation (350+ lines)
 4. `SESSION_SUMMARY.md` - This document
 
@@ -466,7 +466,7 @@ docker logs -f ai-floorplan-celery
 
 1. **Celery Chains**: Use `.si()` for immutable signatures to prevent argument passing
 2. **Address Handling**: Frontend form data is more reliable than AI extraction
-3. **CoreLogic API**: Requires correct base URL and OAuth2 configuration
+3. **ATTOM API**: Requires correct base URL and API key configuration
 4. **Testing Strategy**: Automated scripts catch issues faster than manual testing
 5. **Frontend Layout**: 3-column grid with sticky positioning improves UX
 6. **Copy-to-Clipboard**: Navigator API makes content sharing effortless

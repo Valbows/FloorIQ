@@ -534,11 +534,11 @@ const PropertyDetail = () => {
           <div className="flex flex-col gap-6">
 
             {/* PROPERTY VALUATION - Combined Analysis */}
-            {extracted.square_footage > 0 && extracted.market_insights?.price_estimate?.estimated_value && (
+            {extracted.market_insights?.price_estimate?.estimated_value && (
               (() => {
                 const price = extracted.market_insights.price_estimate.estimated_value
-                const sqft = extracted.square_footage
-                const ppsf = Math.round(price / sqft)
+                const sqft = extracted.square_footage || 0
+                const ppsf = sqft > 0 ? Math.round(price / sqft) : null
                 const priceEstimate = extracted.market_insights.price_estimate
                 
                 // Calculate market average from comparable properties
@@ -565,17 +565,17 @@ const PropertyDetail = () => {
                 const compCount = comparables.length
                 
                 return (
-                  <div className="rounded-lg p-6 flex flex-col flex-1" style={{background: '#FFFFFF', border: '3px solid #FF5959'}}>
+                  <div data-testid="valuation-card" className="rounded-lg p-6 flex flex-col flex-1" style={{background: '#FFFFFF', border: '3px solid #FF5959'}}>
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-2">
                         <DollarSign className="w-5 h-5" style={{color: '#FF5959'}} />
                         <h3 className="text-sm font-black uppercase tracking-wider" style={{color: '#000000', letterSpacing: '1.5px'}}>
                           Property Valuation
                         </h3>
-                  </div>
+                      </div>
                       
                       {/* Confidence Badge */}
-                      <span className="px-3 py-1 text-xs font-bold uppercase" style={{
+                      <span data-testid="confidence-badge" className="px-3 py-1 text-xs font-bold uppercase" style={{
                         background: priceEstimate?.confidence === 'high' ? '#22C55E' : priceEstimate?.confidence === 'medium' ? '#666666' : '#CCCCCC',
                         color: '#FFFFFF',
                         borderRadius: '4px',
@@ -583,7 +583,7 @@ const PropertyDetail = () => {
                       }}>
                         {priceEstimate?.confidence || 'low'} confidence
                       </span>
-              </div>
+                    </div>
                     
                     <div className="space-y-4">
                       {/* Main Price Display */}
@@ -597,37 +597,43 @@ const PropertyDetail = () => {
                           Range: ${(priceEstimate?.value_range_low || 0).toLocaleString()} - ${(priceEstimate?.value_range_high || 0).toLocaleString()}
                         </p>
                         <div className="flex items-center gap-4">
-                          <span className="text-lg font-bold" style={{color: '#FF5959'}}>
-                            ${ppsf.toLocaleString()}/sqft
-                          </span>
-                          <span className="text-sm" style={{color: '#666666'}}>
-                            ({sqft.toLocaleString()} sq ft)
-                          </span>
+                          {ppsf !== null && (
+                            <span className="text-lg font-bold" style={{color: '#FF5959'}}>
+                              ${ppsf.toLocaleString()}/sqft
+                            </span>
+                          )}
+                          {sqft > 0 && (
+                            <span className="text-sm" style={{color: '#666666'}}>
+                              ({sqft.toLocaleString()} sq ft)
+                            </span>
+                          )}
                         </div>
-            </div>
+                      </div>
 
                       {/* Market Comparison */}
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="rounded-lg p-3" style={{background: '#F6F1EB'}}>
-                          <p className="text-xs font-medium mb-1" style={{color: '#666666'}}>
-                            Market Avg {compCount > 0 && `(${compCount} comps)`}
-                          </p>
-                          <p className="text-lg font-bold" style={{color: '#000000'}}>
-                            ${marketAvgPPSF.toLocaleString()}/sqft
-                          </p>
-              </div>
-                        <div className="rounded-lg p-3" style={{
-                          background: isAboveMarket ? '#F0FDF4' : '#FEF2F2',
-                          border: `1px solid ${isAboveMarket ? '#86EFAC' : '#FECACA'}`
-                        }}>
-                          <p className="text-xs font-medium mb-1" style={{color: '#666666'}}>
-                            Market Position
-                          </p>
-                          <p className="text-sm font-bold" style={{color: isAboveMarket ? '#16A34A' : '#DC2626'}}>
-                            {isAboveMarket ? '▲' : '▼'} {Math.abs(percentDiff)}% {isAboveMarket ? 'Above' : 'Below'}
-                          </p>
-                </div>
-                </div>
+                      {ppsf !== null && (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="rounded-lg p-3" style={{background: '#F6F1EB'}}>
+                            <p className="text-xs font-medium mb-1" style={{color: '#666666'}}>
+                              Market Avg {compCount > 0 && `(${compCount} comps)`}
+                            </p>
+                            <p className="text-lg font-bold" style={{color: '#000000'}}>
+                              ${marketAvgPPSF.toLocaleString()}/sqft
+                            </p>
+                          </div>
+                          <div className="rounded-lg p-3" style={{
+                            background: isAboveMarket ? '#F0FDF4' : '#FEF2F2',
+                            border: `1px solid ${isAboveMarket ? '#86EFAC' : '#FECACA'}`
+                          }}>
+                            <p className="text-xs font-medium mb-1" style={{color: '#666666'}}>
+                              Market Position
+                            </p>
+                            <p className="text-sm font-bold" style={{color: isAboveMarket ? '#16A34A' : '#DC2626'}}>
+                              {isAboveMarket ? '▲' : '▼'} {Math.abs(percentDiff)}% {isAboveMarket ? 'Above' : 'Below'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                       
                       {/* Data Source Tooltip */}
                       <div className="flex items-center justify-center pt-3 border-t border-gray-200">
@@ -705,7 +711,7 @@ const PropertyDetail = () => {
 
             {/* Investment Analysis */}
             {extracted.market_insights?.investment_analysis && (
-              <div className="rounded-lg p-6 flex flex-col flex-1" style={{background: '#FFFFFF', border: '2px solid #000000'}}>
+              <div data-testid="investment-analysis" className="rounded-lg p-6 flex flex-col flex-1" style={{background: '#FFFFFF', border: '2px solid #000000'}}>
                 <h2 className="text-lg font-black uppercase mb-4 flex items-center" style={{color: '#000000', letterSpacing: '1px'}}>
                   <Building2 className="w-5 h-5 mr-2" style={{color: '#FF5959'}} />
                   Investment Analysis
@@ -714,7 +720,7 @@ const PropertyDetail = () => {
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-medium" style={{color: '#666666'}}>Investment Score</span>
                     <span className="text-3xl font-black" style={{color: '#000000'}}>
-                      {extracted.market_insights.investment_analysis?.investment_score || 0}<span className="text-lg" style={{color: '#666666'}}>/100</span>
+                      {extracted.market_insights.investment_analysis?.investment_score || 0}<span data-testid="investment-score-total" className="text-lg" style={{color: '#666666'}}>/100</span>
                     </span>
                       </div>
                   <div className="w-full rounded-full h-3" style={{background: '#E5E5E5'}}>

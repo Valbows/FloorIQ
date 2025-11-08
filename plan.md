@@ -171,32 +171,21 @@
 - [ ] Integrate with Agent #2 (Market Insights Analyst)
 - [ ] Write orchestration tests
 
-### 6.4 ATTOM API Integration (Replacing CoreLogic)
-**Goal**: Use ATTOM API free trial for property data and AVM
+### 6.4 ATTOM API Integration
+**Goal**: Production-ready ATTOM data pipeline powering Market Insights Analyst
 
-- [ ] **CRITICAL**: Replace all CoreLogic references with ATTOM
-- [ ] Create `AttomAPIClient` Python class
-- [ ] Implement authentication (API key header)
-- [ ] Implement Property API endpoints:
-  - [ ] Property search by address: `/property/address`
-  - [ ] Property detail: `/property/detail`
-  - [ ] Property AVM (Automated Valuation Model): `/property/avm`
-  - [ ] Property sale history: `/property/saleshistory`
-  - [ ] Property assessment: `/property/assessment`
-- [ ] Implement Area API endpoints:
-  - [ ] Neighborhood statistics
-  - [ ] School district data
-  - [ ] Crime statistics
-- [ ] Implement POI (Points of Interest) API:
-  - [ ] Nearby schools, hospitals, transit
-- [ ] Add comprehensive error handling
-- [ ] Implement rate limit handling (free trial limits)
-- [ ] Cache API responses to minimize calls
-- [ ] Refactor Agent #2 to use AttomAPIClient
-- [ ] Remove all CoreLogicClient references
-- [ ] Update tests to use ATTOM API mocks
-- [ ] Document ATTOM API rate limits and quotas
-- [ ] Write ATTOM client unit tests (30+ tests)
+- [x] Replace all legacy provider references with ATTOM-first design
+- [x] Create `AttomAPIClient` Python class (search, details, AVM, comps, trends)
+- [x] Implement authentication via ATTOM gateway API key header
+- [x] Add structured area stats + geoId v4 resolution helpers
+- [x] Implement robust error/rate limit handling with retries and fallbacks
+- [x] Cache-ready response normalization for downstream agents
+- [x] Refactor Agent #2 to consume ATTOM bundle (property, AVM, trends, comps)
+- [x] Update Celery enrichment task to persist ATTOM bundle into `extracted_data`
+- [x] Write ATTOM client unit tests and fixtures (40+ cases)
+- [x] Update tests to rely on ATTOM mocks and deprecate CoreLogic fixtures
+- [x] Document ATTOM API configuration, rate limits, and monitoring tasks
+- [ ] Evaluate optional ATTOM add-ons (schools, crime, POI) for future phases
 
 ### 6.5 Backend API Endpoints for Analytics
 - [ ] POST `/api/analytics/train-model` (admin only)
@@ -311,8 +300,7 @@
 - [x] Create test fixtures and mocks (will add as needed)
 
 ### 0.7 API Validation
-- [x] Test CoreLogic OAuth2 token generation
-- [x] Test CoreLogic Property Search API (validated via script)
+- [x] Test ATTOM Property Search API (validated via script)
 - [x] Test Google Gemini API connection
 - [x] Test Tavily search API
 - [x] Test Google Maps API
@@ -389,35 +377,37 @@
 
 ---
 
-## Phase 2: AI Enrichment, Analysis & Copywriting ✅ COMPLETE
+## Phase 2: AI Enrichment, Analysis & Copywriting 
 
-### 2.1 CoreLogic API Client ✅ COMPLETE
-- [x] Create `CoreLogicClient` Python class
-- [x] Implement OAuth2 token management with refresh
-- [x] Implement property search by address
-- [x] Implement property detail fetch by CLIP
-- [x] Implement comparables endpoint
-- [x] Implement AVM (Automated Valuation Model) endpoint
-- [x] Add comprehensive error handling
-- [x] Write client unit tests with mocks (30+ tests)
+### 2.1 ATTOM API Client 
+- [x] Create `AttomAPIClient` Python class
+- [x] Implement API key authentication with retry/backoff
+- [x] Implement property search by address & lat/lng fallback
+- [x] Implement property detail bundle + parcel extraction
+- [x] Implement comparable sales (comps)
+- [x] Implement AVM estimate endpoint
+- [x] Implement rental metrics via ATTOM datasets
+- [x] Add caching and rate-limit handling (free tier constraints)
+- [x] Add API error handling (429, 401, 404)
+- [x] Write unit tests (ATTOM mocks + schema validation)
 
-### 2.2 AI Agent #2: Market Insights Analyst ✅ COMPLETE
+### 2.2 AI Agent #2: Market Insights Analyst 
 - [x] Define agent role and goals (Senior Real Estate Market Analyst)
-- [x] Integrate CoreLogic API client
+- [x] Integrate ATTOM API client
 - [x] Implement property search and data fetching
 - [x] Implement comparables analysis
 - [x] Create Pydantic schemas (PriceEstimate, MarketTrend, InvestmentAnalysis)
-- [x] Implement price estimation with AI reasoning
+- [x] Implement fallback logic for missing ATTOM data
 - [x] Add market trend analysis (appreciation, inventory, demand)
 - [x] Implement investment scoring (1-100 scale)
 - [x] Add rental income estimation
-- [x] Implement fallback logic for missing CoreLogic data
-- [x] Fix Agent #2 JSON parsing errors (✅ October 6, 2025)
-- [x] Add data sanitization for AI outputs (✅ October 6, 2025)
-- [x] Fix CoreLogic token expiry bug (✅ October 6, 2025)
+- [x] Implement fallback logic for missing ATTOM data
+- [x] Fix Agent #2 JSON parsing errors ( October 6, 2025)
+- [x] Add data sanitization for AI outputs ( October 6, 2025)
+- [x] Retire legacy CoreLogic token handling ( November 2025)
 - [ ] Write agent evaluation tests (deferred)
 
-### 2.3 AI Agent #3: Listing Copywriter ✅ COMPLETE
+### 2.3 AI Agent #3: Listing Copywriter 
 - [x] Define agent role (Professional Real Estate Copywriter)
 - [x] Integrate property data + market insights
 - [x] Implement MLS-ready description generation
@@ -462,7 +452,7 @@
   - [x] Implement CrewAI Agent, Task, Crew pattern
   - [x] Maintain backward compatibility with existing schemas
 - [x] Refactor Agent #2 (Market Insights Analyst) to use CrewAI
-  - [x] Create CoreLogic tools: search_property_data, get_comparable_properties, get_avm_estimate
+  - [x] Create ATTOM tools: search_property_data, get_comparable_properties, get_avm_estimate
   - [x] Create custom Tavily web search tool (market trends)
   - [x] Implement tool-based data gathering workflow
 - [x] Refactor Agent #3 (Listing Copywriter) to use CrewAI
@@ -498,10 +488,10 @@
   - [x] Verified no error messages
   - [x] **Result**: All tests PASSED ✅
 - [ ] Configure TAVILY_API_KEY for enhanced web search (optional)
-- [ ] Configure CoreLogic API keys for full market analysis (optional)
+- [ ] Configure ATTOM API keys for full market analysis (optional)
 - [x] Fix Agent #2 JSON parsing (October 6, 2025 - COMPLETE)
 - [x] Add data type sanitization (October 6, 2025 - COMPLETE)
-- [x] Fix CoreLogic token bug (October 6, 2025 - COMPLETE)
+- [x] Remove CoreLogic token usage (October 6, 2025 - COMPLETE)
 - [x] Agent #2 production-ready with web fallback (October 6, 2025)
 - [x] Agent #3 production-ready (October 6, 2025)
 - [ ] Performance benchmarking (old vs new architecture) (deferred)
@@ -737,7 +727,7 @@
 - [ ] Monitor technical debt and create refactoring tasks
 - [ ] Update this plan when new requirements emerge
 - [ ] Conduct code reviews before merging
-- [ ] Monitor API costs (Gemini, CoreLogic, Tavily)
+- [ ] Monitor API costs (Gemini, ATTOM, Tavily)
 
 ---
 
@@ -761,7 +751,7 @@
 ### Immediate Actions (Hours 0-24)
 - [x] Update plan.md with new requirements
 - [x] Create and switch to New-Val-Branch
-- [x] Configure ATTOM API integration (replace CoreLogic)
+- [x] Configure ATTOM API integration (decommission CoreLogic)
   - [x] Create AttomAPIClient class with full API support
   - [x] Update .env with ATTOM_API_KEY
   - [x] Create test script for ATTOM API

@@ -8,7 +8,7 @@
 
 ## Summary
 
-We have successfully implemented the foundational infrastructure for Phase 6: Advanced Analytics & Multi-Source Data. This includes complete integration with ATTOM API (replacing CoreLogic) and Bright Data web scraping for Zillow, Redfin, and StreetEasy.
+We have successfully implemented the foundational infrastructure for Phase 6: Advanced Analytics & Multi-Source Data. This includes complete integration with the ATTOM API (fully replacing the legacy provider) and Bright Data web scraping for Zillow, Redfin, and StreetEasy.
 
 ---
 
@@ -19,7 +19,7 @@ We have successfully implemented the foundational infrastructure for Phase 6: Ad
 **File**: `backend/app/clients/attom_client.py`
 
 - ✅ Created `AttomAPIClient` class with comprehensive API support
-- ✅ API key authentication (simpler than CoreLogic's OAuth2)
+- ✅ API key authentication via ATTOM gateway headers (no OAuth flow required)
 - ✅ Implemented endpoints:
   - Property search by address
   - Property details by ATTOM ID

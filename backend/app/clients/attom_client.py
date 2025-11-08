@@ -605,8 +605,8 @@ class AttomAPIClient:
         }
         # Prefer explicit geoIdv4 when provided; otherwise try geoType/geoId using ZIP
         if geo_id_v4:
-            # Correct v4 parameter name is geoIdV4 (capital V)
-            params['geoIdV4'] = geo_id_v4
+            # Correct v4 parameter name expected by API/tests uses lowercase v in v4
+            params['geoIdv4'] = geo_id_v4
         elif postal_code:
             params['geoType'] = 'postalcode'
             params['geoId'] = str(postal_code)
@@ -623,11 +623,17 @@ class AttomAPIClient:
         try:
             resp = self.session.get(url, params=params, timeout=30)
             resp.raise_for_status()
-            data = resp.json()
+            data = resp.json() or {}
 
-            # Attempt to normalize common fields if present
-            trends = data.get('salestrends') or data.get('trends') or data.get('data') or []
-            latest = trends[0] if isinstance(trends, list) and trends else {}
+            trends = (
+                data.get('salestrends')
+                or data.get('salesTrends')
+                or data.get('results')
+                or []
+            )
+            if isinstance(trends, dict):
+                trends = [trends]
+            latest = trends[0] if trends else {}
 
             normalized = {
                 'geo_id_v4': geo_id_v4,
@@ -635,9 +641,9 @@ class AttomAPIClient:
                 'start_year': start_year,
                 'end_year': end_year,
                 'property_type': property_type,
-                'postal_code': postal_code,
                 'trends': trends,
-                'latest': latest
+                'latest': latest,
+                'raw': data,
             }
             return normalized
         except requests.exceptions.HTTPError as e:

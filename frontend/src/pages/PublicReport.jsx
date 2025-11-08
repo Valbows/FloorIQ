@@ -408,7 +408,7 @@ const PublicReport = () => {
             </div>
             <p className="text-sm text-gray-600 mb-4">Similar properties sold recently in this area</p>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div data-testid="comps-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {comparableProperties.slice(0, 6).map((comp, index) => (
                 <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
                   <div className="flex items-start justify-between mb-3">

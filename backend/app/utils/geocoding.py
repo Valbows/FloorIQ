@@ -90,6 +90,9 @@ def normalize_address(raw_address: str) -> Dict[str, Optional[str]]:
         comps = result.get("address_components", [])
         street = _parse_street(comps) or raw_address
         city = _derive_city(comps)
+        borough = None
+        if city and city.upper() in NYC_BOROUGHS:
+            borough = city
         state = _component(comps, "administrative_area_level_1", use_short=True)
         zip_code = _component(comps, "postal_code")
         loc = result.get("geometry", {}).get("location", {})
@@ -114,7 +117,16 @@ def normalize_address(raw_address: str) -> Dict[str, Optional[str]]:
         except Exception:
             pass
 
-        return {"street": street, "city": city, "state": state, "zip": zip_code, "lat": lat, "lng": lng, "neighborhood": neighborhood}
+        return {
+            "street": street,
+            "city": city,
+            "state": state,
+            "zip": zip_code,
+            "lat": lat,
+            "lng": lng,
+            "neighborhood": neighborhood,
+            "borough": borough
+        }
 
     except Exception:
         # Graceful fallback

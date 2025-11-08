@@ -12,9 +12,24 @@ from flask_jwt_extended import (
 )
 from app.utils.supabase_client import get_supabase_client, get_admin_db
 from datetime import timedelta
+import logging
 import re
 
 auth_bp = Blueprint('auth', __name__)
+
+
+logger = logging.getLogger(__name__)
+
+
+def _get_admin_client(primary_client):
+    """Return admin Supabase client or fallback to the provided primary client."""
+    try:
+        admin_client = get_admin_db()
+        if admin_client:
+            return admin_client
+    except Exception as exc:
+        logger.warning("Falling back to primary Supabase client: %s", exc)
+    return primary_client
 
 
 def validate_email(email):
@@ -114,15 +129,18 @@ def register():
         
         # Insert extended user data into public.users table
         # Use admin client to bypass RLS policies during registration
-        admin_client = get_admin_db()
         user_data = {
             'id': user_id,
             'email': email,
             'full_name': full_name
         }
-        
-        admin_client.table('users').insert(user_data).execute()
-        
+
+        try:
+            admin_client = _get_admin_client(supabase)
+            admin_client.table('users').insert(user_data).execute()
+        except Exception as exc:
+            logger.warning("Skipping admin user insert due to error: %s", exc)
+
         # Create JWT access token
         access_token = create_access_token(
             identity=user_id,
@@ -209,7 +227,7 @@ def login():
         # Auto-upsert minimal user profile if missing
         if not user_response.data:
             try:
-                admin_client = get_admin_db()
+                admin_client = _get_admin_client(supabase)
                 admin_client.table('users').upsert({
                     'id': user_id,
                     'email': email,

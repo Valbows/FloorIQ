@@ -1,26 +1,36 @@
 #!/bin/bash
-source .env
 
-TOKEN=$(curl -s -X POST "https://api-prod.corelogic.com/oauth/token?grant_type=client_credentials" \
-  -u "$CORELOGIC_CONSUMER_KEY:$CORELOGIC_CONSUMER_SECRET" -H "Content-Length: 0" | \
-  python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null)
+set -e
 
-echo "Testing Property Search endpoints..."
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | grep ATTOM | xargs)
+fi
+
+if [ -z "$ATTOM_API_KEY" ]; then
+  echo "❌ ATTOM_API_KEY missing from environment"
+  exit 1
+fi
+
+BASE_URL="https://api.gateway.attomdata.com/propertyapi/v1.0.0"
+ADDRESS="1600 Amphitheatre Pkwy"
+ZIP="94043"
+
+echo "Testing ATTOM property address endpoint variations..."
 echo ""
 
-# Test different endpoint patterns
-ENDPOINTS=(
-  "/property-search?address=919%20MALCOLM%20AVE&city=LOS%20ANGELES&state=CA&zip=90024"
-  "/search?address=919%20MALCOLM%20AVE&city=LOS%20ANGELES&state=CA&zip=90024"
-  "/properties/search?address=919%20MALCOLM%20AVE"
-  "/property/search?streetAddress=919%20MALCOLM%20AVE&city=LOS%20ANGELES&state=CA"
+# ATTOM supports specific query combinations; try a few relevant permutations
+declare -A QUERIES=(
+  ["address+zip"]="address1=$ADDRESS&postalcode=$ZIP"
+  ["address+city+state"]="address1=$ADDRESS&city=Mountain%20View&state=CA"
 )
 
-for endpoint in "${ENDPOINTS[@]}"; do
-  echo "Testing: $endpoint"
+for label in "${!QUERIES[@]}"; do
+  query=${QUERIES[$label]}
+  echo "Testing combination: $label"
   HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-    "https://api-prod.corelogic.com$endpoint" \
-    -H "Authorization: Bearer $TOKEN" \
+    -G "$BASE_URL/property/address" \
+    --data "$query" \
+    -H "apikey: $ATTOM_API_KEY" \
     -H "Accept: application/json")
   echo "HTTP Status: $HTTP_CODE"
   echo ""

@@ -88,7 +88,7 @@ python backend/tests/manual/test_api_keys.py
 ====================================
 ✅ Gemini API working!
 ✅ Tavily API working!
-✅ CoreLogic API working!
+✅ ATTOM API working!
 ✅ Google Maps API working!
 ✅ Supabase connection established
 

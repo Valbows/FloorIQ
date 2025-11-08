@@ -60,11 +60,11 @@ CREATE TABLE IF NOT EXISTS public.market_insights (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES public.properties(id) ON DELETE CASCADE NOT NULL UNIQUE,
     
-    -- CoreLogic identifiers (legacy - being replaced with ATTOM)
-    clip_id TEXT,
+    -- ATTOM identifiers
+    attom_property_id TEXT,
     
-    -- CoreLogic data (legacy)
-    corelogic_data JSONB DEFAULT '{}'::jsonb,
+    -- ATTOM market data bundle
+    attom_data JSONB DEFAULT '{}'::jsonb,
     
     -- Comparables data
     comparables JSONB DEFAULT '[]'::jsonb,

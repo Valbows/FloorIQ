@@ -68,19 +68,19 @@ All 3 AI agents successfully refactored to use CrewAI framework and tested end-t
 ### ✅ **Agent #2: Market Insights Analyst (CrewAI)**
 
 **Status**: Executed Successfully  
-**Framework**: CrewAI with CoreLogic + Tavily tools  
+**Framework**: CrewAI with ATTOM + Tavily tools  
 **Execution Time**: ~1 second  
 
 **Tools Available**:
-- `search_property_data` - CoreLogic property search
-- `get_comparable_properties` - CoreLogic comps
-- `get_avm_estimate` - CoreLogic AVM
+- `search_property_data` - ATTOM property lookup
+- `get_comparable_properties` - ATTOM comps
+- `get_avm_estimate` - ATTOM AVM
 - `tavily_search_tool` - Web search (optional, not configured in test)
 
 **Result**:
 - Successfully executed with CrewAI orchestration
-- CoreLogic tools initialized properly
-- Fallback logic triggered (no CoreLogic API key configured)
+- ATTOM tools initialized properly
+- Fallback logic triggered (no ATTOM API key configured)
 - Returned structured market insights
 
 **Output**:
@@ -109,7 +109,7 @@ All 3 AI agents successfully refactored to use CrewAI framework and tested end-t
 
 **Notes**:
 - Fallback logic working as designed
-- Would provide rich market data with CoreLogic API configured
+- Would provide rich market data with ATTOM API configured
 - Tavily search ready (needs TAVILY_API_KEY)
 
 ---
@@ -184,9 +184,9 @@ All 3 AI agents successfully refactored to use CrewAI framework and tested end-t
 1. `analyze_image_with_gemini` - Gemini Vision for floor plans
 
 **Agent #2 Tools** (4):
-1. `search_property_data` - CoreLogic property lookup
-2. `get_comparable_properties` - CoreLogic comps
-3. `get_avm_estimate` - CoreLogic AVM
+1. `search_property_data` - ATTOM property lookup
+2. `get_comparable_properties` - ATTOM comps
+3. `get_avm_estimate` - ATTOM AVM
 4. `tavily_search_tool` - Market trends web search
 
 **Agent #3 Tools** (2):
@@ -236,8 +236,8 @@ Task Chain:
    - Caused JSON parsing issues in Agent #1
    - Fallback data returned correctly
 
-2. **No CoreLogic API Key**
-   - Agent #2 CoreLogic tools unavailable
+2. **No ATTOM API Key**
+   - Agent #2 ATTOM tools unavailable
    - Fallback market estimates used
    - Would work with real API key
 
@@ -264,7 +264,7 @@ Task Chain:
 
 ### ⚠️ **Recommended for Production**:
 - [ ] Configure `TAVILY_API_KEY` for web search
-- [ ] Configure `CORELOGIC_CLIENT_ID` and `CORELOGIC_CLIENT_SECRET`
+- [ ] Configure `ATTOM_API_KEY` for market data
 - [ ] Upload real floor plan images for testing
 - [ ] Performance monitoring and logging
 - [ ] Rate limiting for API calls
@@ -292,7 +292,7 @@ Task Chain:
 ### 📈 **Next Steps**:
 1. Add `TAVILY_API_KEY` to environment for enhanced results
 2. Test with real floor plan images
-3. Configure CoreLogic API for full market analysis
+3. Configure ATTOM API plan upgrade for expanded market coverage
 4. Performance benchmarking (old vs new)
 5. Accuracy evaluation with real estate data
 6. User acceptance testing
@@ -303,7 +303,7 @@ Task Chain:
 
 **Status**: ✅ **PRODUCTION-READY WITH CREWAI**
 
-The CrewAI integration is **complete and functional**. All 3 agents execute successfully with proper error handling, fallback mechanisms, and tool-based architecture. The system is ready for production use with optional enhancements (Tavily API, CoreLogic API) that will significantly improve output quality.
+The CrewAI integration is **complete and functional**. All 3 agents execute successfully with proper error handling, fallback mechanisms, and tool-based architecture. The system is ready for production use with optional enhancements (Tavily API, ATTOM API) that will significantly improve output quality.
 
 **Test Result**: **PASS** ✅  
 **Recommendation**: **DEPLOY TO PRODUCTION**

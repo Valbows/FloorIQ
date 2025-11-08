@@ -68,14 +68,17 @@ test.describe('Market Insights Display', () => {
     // Verify we're on the property detail page
     await expect(page.getByRole('heading', { name: /Property Details/i }).first()).toBeVisible({ timeout: 10000 });
 
-    // Click on Market Insights tab
-    await page.getByText('Market Insights').click();
+    // Click on Market Insights tab if present (new UI may show insights inline)
+    const miTab = page.getByRole('button', { name: /Market Insights/i });
+    if (await miTab.isVisible().catch(() => false)) {
+      await miTab.click();
+    }
 
     // Wait a moment for content to render
     await page.waitForTimeout(1000);
 
-    // Check for Price Estimate section (use heading role to avoid ambiguity)
-    await expect(page.getByRole('heading', { name: /Price Estimate/i })).toBeVisible();
+    // Check for valuation section (supports new UI heading "Property Valuation" or legacy "Price Estimate")
+    await expect(page.getByRole('heading', { name: /Property Valuation|Price Estimate/i })).toBeVisible();
     
     // Check for dollar amount (should have $ and comma)
     const priceElement = page.locator('text=/\\$[0-9,]+/').first();
@@ -83,8 +86,10 @@ test.describe('Market Insights Display', () => {
     const priceText = await priceElement.textContent();
     console.log(`✅ Price displayed: ${priceText}`);
 
-    // Check for confidence badge
-    await expect(page.locator('text=/confidence/i')).toBeVisible();
+    // Check for confidence badge using stable test ids
+    const valuationCard = page.getByTestId('valuation-card');
+    await expect(valuationCard).toBeVisible();
+    await expect(valuationCard.getByTestId('confidence-badge')).toBeVisible();
 
     // Check for Market Trend section
     await expect(page.getByText(/Market Trend/i)).toBeVisible();
@@ -95,9 +100,10 @@ test.describe('Market Insights Display', () => {
     // Check for Investment Analysis section
     await expect(page.getByText(/Investment Analysis/i)).toBeVisible();
     
-    // Check for investment score
+    // Check for investment score (scoped via test ids)
     await expect(page.getByText(/Investment Score/i)).toBeVisible();
-    await expect(page.locator('text=/\\/100/')).toBeVisible();
+    const investmentSection = page.getByTestId('investment-analysis');
+    await expect(investmentSection.getByTestId('investment-score-total')).toBeVisible();
 
     console.log('✅ All market insights sections displayed correctly');
   });
@@ -137,8 +143,11 @@ test.describe('Market Insights Display', () => {
     // Verify page loaded
     await expect(page.getByRole('heading', { name: /Property Details/i }).first()).toBeVisible();
 
-    // Click on Market Insights tab
-    await page.getByText('Market Insights').click();
+    // Click on Market Insights tab if present (new UI may show insights inline)
+    const miTab2 = page.getByRole('button', { name: /Market Insights/i });
+    if (await miTab2.isVisible().catch(() => false)) {
+      await miTab2.click();
+    }
     await page.waitForTimeout(1000);
 
     // Should NOT show loading message (updated text from Ariel-Branch)

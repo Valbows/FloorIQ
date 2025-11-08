@@ -58,41 +58,45 @@ def test_tavily_api():
         return False
 
 
-def test_corelogic_api():
-    """Test CoreLogic Property API authentication"""
-    print("\n🧪 Testing CoreLogic API...")
+def test_attom_api():
+    """Test ATTOM Property API authentication"""
+    print("\n🧪 Testing ATTOM API...")
     try:
         import requests
-        from requests.auth import HTTPBasicAuth
-        
-        consumer_key = os.getenv('CORELOGIC_CONSUMER_KEY')
-        consumer_secret = os.getenv('CORELOGIC_CONSUMER_SECRET')
-        
-        if not consumer_key or not consumer_secret:
-            print("❌ CoreLogic credentials not found in environment")
+
+        api_key = os.getenv('ATTOM_API_KEY')
+
+        if not api_key:
+            print("❌ ATTOM_API_KEY not found in environment")
             return False
-        
-        # Get OAuth token
-        auth_url = 'https://api-prod.corelogic.com/oauth/token?grant_type=client_credentials'
-        response = requests.post(
-            auth_url,
-            auth=HTTPBasicAuth(consumer_key, consumer_secret),
-            timeout=10
-        )
-        
+
+        url = 'https://api.gateway.attomdata.com/propertyapi/v1.0.0/property/address'
+        params = {
+            'address1': '1600 Amphitheatre Pkwy',
+            'postalcode': '94043'
+        }
+        headers = {
+            'apikey': api_key,
+            'Accept': 'application/json'
+        }
+
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+
         if response.status_code == 200:
-            data = response.json()
-            if 'access_token' in data:
-                print(f"✅ CoreLogic API working! Token expires in {data.get('expires_in')}s")
+            payload = response.json() or {}
+            status = (payload.get('status') or {}).get('code')
+            if status == 0:
+                properties = payload.get('property') or []
+                print(f"✅ ATTOM API working! Returned {len(properties)} property results")
                 return True
             else:
-                print("❌ CoreLogic API returned unexpected format")
+                print(f"❌ ATTOM API returned error status: {payload.get('status')}")
                 return False
         else:
-            print(f"❌ CoreLogic API failed: {response.status_code} - {response.text}")
+            print(f"❌ ATTOM API failed: {response.status_code} - {response.text}")
             return False
     except Exception as e:
-        print(f"❌ CoreLogic API failed: {str(e)}")
+        print(f"❌ ATTOM API failed: {str(e)}")
         return False
 
 
@@ -165,7 +169,7 @@ def main():
     results = {
         'Gemini': test_gemini_api(),
         'Tavily': test_tavily_api(),
-        'CoreLogic': test_corelogic_api(),
+        'ATTOM': test_attom_api(),
         'Google Maps': test_google_maps_api(),
         'Supabase': test_supabase_connection()
     }

@@ -340,8 +340,9 @@ test.describe('Interactive Features - Phase 4.3', () => {
       console.log('   ✅ Comps section visible on mobile');
 
       // Verify single column layout
-      const compsGrid = page.locator('div.grid').filter({ has: page.locator('text=/Sale Price/i') });
-      const gridClasses = await compsGrid.first().getAttribute('class');
+      const compsGrid = page.getByTestId('comps-grid');
+      await expect(compsGrid).toBeVisible();
+      const gridClasses = await compsGrid.getAttribute('class');
       if (gridClasses && gridClasses.includes('grid-cols-1')) {
         console.log('   ✅ Comps use single column on mobile');
       }

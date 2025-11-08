@@ -139,7 +139,7 @@ docker logs -f ai-floorplan-celery
 
 [INFO] Enriching property data...
 [INFO] Running market analysis with AI Agent #2...
-[INFO] Fetching CoreLogic data for: 123 Main Street, Miami, FL 33101
+[INFO] Fetching ATTOM data for: 123 Main Street, Miami, FL 33101
 [INFO] Market insights generated: Price estimate $425,000
 
 [INFO] Generating listing copy with AI Agent #3...
@@ -187,9 +187,9 @@ Should contain:
 ### Issue: Only Agent #1 runs, not #2 and #3
 **Solution**: Fixed! Now calling `process_property_workflow` instead of just `process_floor_plan_task`.
 
-### Issue: CoreLogic API errors
+### Issue: ATTOM API errors
 **Options**:
-1. Add real CoreLogic credentials to `.env`
+1. Add real ATTOM credentials to `.env`
 2. Or let it use fallback logic (basic estimates without API)
 
 ### Issue: Workflow times out
@@ -205,7 +205,7 @@ Should contain:
 | Agent | Task | Duration |
 |-------|------|----------|
 | **Agent #1** | Floor plan analysis (Gemini Vision) | ~5-10s |
-| **Agent #2** | Market insights (CoreLogic + Gemini) | ~15-30s |
+| **Agent #2** | Market insights (ATTOM + Gemini) | ~15-30s |
 | **Agent #3** | Listing copy (Gemini) | ~10-20s |
 | **Total** | Complete workflow | **30-60s** |
 

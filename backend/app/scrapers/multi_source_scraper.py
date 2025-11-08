@@ -13,6 +13,7 @@ from app.clients.scrapingbee_client import ScrapingBeeClient
 from .zillow_scraper import ZillowScraper
 from .redfin_scraper import RedfinScraper
 from .streeteasy_scraper import StreetEasyScraper
+from app.utils.geocoding import NYC_BOROUGHS
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,16 @@ class MultiSourceScraper:
             await self.client.close()
             self.client = None
     
-    async def scrape_property(self, address: str, city: str, state: str) -> Dict[str, Any]:
+    async def scrape_property(
+        self,
+        address: str,
+        city: str,
+        state: str,
+        *,
+        zip_code: Optional[str] = None,
+        borough: Optional[str] = None,
+        neighborhood: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Scrape property data from all sources
         
@@ -100,12 +110,57 @@ class MultiSourceScraper:
             Aggregated property data from all sources
         """
         logger.info(f"Starting multi-source scrape for {address}, {city}, {state}")
-        
+
+        city = (city or '').strip()
+        borough = (borough or '').strip() or None
+        neighborhood = (neighborhood or '').strip() or None
+        state = (state or '').strip()
+        zip_code = (zip_code or '').strip() or None
+
+        # Determine best city hints per source
+        city_is_borough = city.upper() in NYC_BOROUGHS if city else False
+        zillow_city = city or (borough or '')
+        if city_is_borough and borough:
+            zillow_city = borough
+        if not zillow_city and borough:
+            zillow_city = borough
+
+        redfin_city = zillow_city or city or borough or ''
+
+        streeteasy_city = borough or city or ''
+        if streeteasy_city and streeteasy_city.upper() not in NYC_BOROUGHS and borough:
+            streeteasy_city = borough
+        streeteasy_neighborhood = neighborhood or (city if not city_is_borough else None)
+
         # Run all scrapers in parallel
         tasks = [
-            self._safe_scrape(self.zillow.search_property, address, city, state, "Zillow"),
-            self._safe_scrape(self.redfin.search_property, address, city, state, "Redfin"),
-            self._safe_scrape(self.streeteasy.search_property, address, city, state, "StreetEasy")
+            self._safe_scrape(
+                self.zillow.search_property,
+                address,
+                zillow_city,
+                state,
+                "Zillow",
+                zip_code=zip_code
+            ),
+            self._safe_scrape(
+                self.redfin.search_property,
+                address,
+                redfin_city,
+                state,
+                "Redfin",
+                zip_code=zip_code,
+                borough=borough
+            ),
+            self._safe_scrape(
+                self.streeteasy.search_property,
+                address,
+                streeteasy_city,
+                state,
+                "StreetEasy",
+                zip_code=zip_code,
+                neighborhood=streeteasy_neighborhood,
+                borough=borough
+            )
         ]
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -124,7 +179,7 @@ class MultiSourceScraper:
         
         return aggregated
     
-    async def _safe_scrape(self, scrape_func, address: str, city: str, state: str, source_name: str) -> Optional[Dict[str, Any]]:
+    async def _safe_scrape(self, scrape_func, address: str, city: str, state: str, source_name: str, **kwargs) -> Optional[Dict[str, Any]]:
         """
         Safely execute scraping function with error handling
         
@@ -139,7 +194,7 @@ class MultiSourceScraper:
             Scraped data or None if failed
         """
         try:
-            return await scrape_func(address, city, state)
+            return await scrape_func(address, city, state, **kwargs)
         except Exception as e:
             logger.warning(f"{source_name} scraping failed: {str(e)}")
             return None

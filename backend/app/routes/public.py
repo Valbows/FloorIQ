@@ -7,7 +7,7 @@ Used for public property reports shared with potential buyers.
 
 from flask import Blueprint, jsonify, request
 from datetime import datetime
-from app.utils.supabase_client import get_db
+from app.utils.supabase_client import get_admin_db
 import os
 
 public_bp = Blueprint('public', __name__, url_prefix='/api/public')
@@ -43,7 +43,7 @@ def get_public_report(token):
         410: Token has been deactivated
     """
     try:
-        db = get_db()
+        db = get_admin_db()
         
         # Find the shareable link by token
         link_result = db.table('shareable_links').select('*').eq('token', token).eq('is_active', True).execute()
@@ -133,7 +133,7 @@ def log_property_view(token):
         }
     """
     try:
-        db = get_db()
+        db = get_admin_db()
         
         # Verify token exists and is active
         link_result = db.table('shareable_links').select('property_id').eq('token', token).eq('is_active', True).execute()
@@ -199,7 +199,7 @@ def validate_token(token):
         }
     """
     try:
-        db = get_db()
+        db = get_admin_db()
         
         # Find the shareable link
         link_result = db.table('shareable_links').select('*').eq('token', token).eq('is_active', True).execute()

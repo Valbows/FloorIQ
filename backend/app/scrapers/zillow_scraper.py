@@ -81,7 +81,14 @@ class ZillowScraper(BaseScraper):
             pass
         return page_url
     
-    async def search_property(self, address: str, city: str, state: str, zip_code: Optional[str] = None) -> Dict[str, Any]:
+    async def search_property(
+        self,
+        address: str,
+        city: str,
+        state: str,
+        zip_code: Optional[str] = None,
+        borough: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
         Search for a property on Zillow
         
@@ -94,14 +101,31 @@ class ZillowScraper(BaseScraper):
             Property data dictionary
         """
         # Build search URL
-        search_address = f"{address}, {city}, {state}".replace(' ', '-')
+        city_hint = (city or '').strip()
+        state_hint = (state or '').strip()
+        zip_hint = (zip_code or '').strip()
+        borough_hint = (borough or '').strip()
+
+        # Prefer borough hint when city is a neighborhood
+        slug_city = city_hint or borough_hint or ''
+        if borough_hint and city_hint and city_hint.lower() != borough_hint.lower():
+            slug_city = f"{city_hint} {borough_hint}"
+
+        search_components = [address]
+        if slug_city:
+            search_components.append(slug_city)
+        if state_hint:
+            search_components.append(state_hint)
+        if zip_hint:
+            search_components.append(zip_hint)
+        search_address = ', '.join(filter(None, search_components)).replace(' ', '-')
         search_url = f"{self.BASE_URL}/homes/{search_address}_rb/"
-        
+
         try:
-            self.log_scraping_result(True, f"Searching Zillow for {address}, {city}, {state}")
+            self.log_scraping_result(True, f"Searching Zillow for {address}, {city_hint or borough_hint}, {state_hint}")
 
             # 1) Try Queens/NYC homedetails candidates first (more reliable for these addresses)
-            candidates = self._queens_detail_candidates(address, city, state, zip_code=zip_code)
+            candidates = self._queens_detail_candidates(address, slug_city or city_hint or borough_hint, state_hint, zip_code=zip_hint or zip_code)
             for cand in candidates:
                 try:
                     resp = await self.client.fetch(

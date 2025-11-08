@@ -6,8 +6,9 @@ Scrapes property data from Redfin.com using ScrapingBee (via shared client)
 import logging
 import json
 from urllib.parse import quote
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from .base_scraper import BaseScraper
+from app.utils.geocoding import NYC_BOROUGHS
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,14 @@ class RedfinScraper(BaseScraper):
     
     BASE_URL = "https://www.redfin.com"
     
-    async def search_property(self, address: str, city: str, state: str) -> Dict[str, Any]:
+    async def search_property(
+        self,
+        address: str,
+        city: str,
+        state: str,
+        zip_code: Optional[str] = None,
+        borough: Optional[str] = None
+    ) -> Dict[str, Any]:
         """Search for a property on Redfin"""
         # Attempt 1: Use Redfin autocomplete to resolve an exact property URL
         try:
@@ -35,7 +43,24 @@ class RedfinScraper(BaseScraper):
             if not self.client:
                 raise Exception("Scraping client not initialized")
 
-            query = f"{address}, {city}, {state}".strip()
+            city_hint = (city or '').strip()
+            state_hint = (state or '').strip()
+            zip_hint = (zip_code or '').strip()
+            borough_hint = (borough or '').strip()
+            if not city_hint and borough_hint:
+                city_hint = borough_hint
+            elif city_hint and city_hint.upper() not in NYC_BOROUGHS and borough_hint and borough_hint.upper() in NYC_BOROUGHS:
+                # Keep neighborhood in city_hint but append borough to improve hits
+                city_hint = f"{city_hint}, {borough_hint}"
+
+            query_parts = [address]
+            if city_hint:
+                query_parts.append(city_hint)
+            if state_hint:
+                query_parts.append(state_hint)
+            if zip_hint:
+                query_parts.append(zip_hint)
+            query = ', '.join(part for part in query_parts if part)
             ac_url = f"{self.BASE_URL}/stingray/do/location-autocomplete?location={quote(query)}"
 
             try:
@@ -97,7 +122,14 @@ class RedfinScraper(BaseScraper):
                 logger.debug(f"Redfin autocomplete lookup failed, fallback to legacy search: {e}")
 
             # Attempt 2: Legacy search URL (best-effort)
-            search_address = f"{address} {city} {state}".strip().replace(' ', '-')
+            legacy_parts = [address]
+            if city_hint:
+                legacy_parts.append(city_hint.replace(',', ' '))
+            if state_hint:
+                legacy_parts.append(state_hint)
+            if zip_hint:
+                legacy_parts.append(zip_hint)
+            search_address = ' '.join(filter(None, legacy_parts)).strip().replace(' ', '-')
             search_url = f"{self.BASE_URL}/search/{search_address}"
             resp = await self.client.fetch(
                 search_url,

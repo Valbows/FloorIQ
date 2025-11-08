@@ -196,7 +196,7 @@ Supabase Redis  Celery   Gemini
 
 ### Phase 2 Preview
 1. **AI Agent #2**: Market Insights Analyst
-   - CoreLogic API integration
+   - ATTOM API integration
    - Comparable property search
    - Price suggestion algorithm
 

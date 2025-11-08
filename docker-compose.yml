@@ -72,6 +72,8 @@ services:
       - "5173:5173"
     env_file:
       - .env
+    environment:
+      - VITE_BACKEND_URL=http://backend:5000
     volumes:
       - ./frontend:/app
       - /app/node_modules  # Prevent host node_modules override

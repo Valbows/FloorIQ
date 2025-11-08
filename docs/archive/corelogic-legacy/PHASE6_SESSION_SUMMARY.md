@@ -9,7 +9,7 @@
 
 ## 🎯 Session Objectives Achieved
 
-### 1. ✅ ATTOM API Integration (Replacing CoreLogic)
+### 1. ✅ ATTOM API Integration (CoreLogic fully retired)
 **Status**: COMPLETE & VERIFIED
 
 **Deliverables**:
@@ -101,7 +101,7 @@
 **Status**: COMPLETE & TESTED
 
 **Changes**:
-- ✅ Replaced CoreLogic tools with ATTOM API tools
+- ✅ Migrated legacy CoreLogic tooling to ATTOM API suite
 - ✅ Added Multi-Source Property Scraping tool
 - ✅ Updated task descriptions for multi-source analysis
 - ✅ Maintained CrewAI + Gemini 2.5 Flash architecture
@@ -275,7 +275,7 @@ pytest-asyncio==0.21.1
   - [x] Write 15 unit tests (all passing)
   - [x] Create setup guide
 - [x] Agent #2 Refactoring
-  - [x] Replace CoreLogic with ATTOM
+  - [x] Fully adopt ATTOM bundle (property, comps, AVM, trends)
   - [x] Add multi-source scraping tool
   - [x] Update task descriptions
   - [x] Write 15 unit tests (all passing)

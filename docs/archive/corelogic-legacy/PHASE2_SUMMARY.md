@@ -9,52 +9,58 @@
 ## 🎯 Objectives Achieved
 
 ### Core Deliverables
-1. **CoreLogic API Integration** - Complete property data access
+1. **ATTOM API Integration** - Complete property data access
 2. **AI Agent #2** - Market Insights Analyst  
 3. **AI Agent #3** - Listing Copywriter
 4. **3-Agent Workflow** - Sequential pipeline with Celery
-5. **30+ Unit Tests** - CoreLogic client fully tested
+5. **30+ Unit Tests** - ATTOM client fully tested
 
 ---
 
 ## 📦 New Components
 
-### 1. CoreLogic API Client (`corelogic_client.py` - 390 lines)
+### 1. ATTOM API Client (`attom_client.py` - 600+ lines)
 
 **Features**:
-- OAuth2 authentication with automatic token refresh
-- Token caching (expires 5 min before actual expiry)
-- Property search by address
-- Property details retrieval by CLIP ID
-- Comparable properties (comps) search
+- API key authentication with ATTOM gateway headers
+- Property search by address (returns ATTOM ID + parcel identifiers)
+- Property details retrieval (lot/building/owner data)
+- Comparable sales search (radius + limit configurable)
 - AVM (Automated Valuation Model) integration
-- Comprehensive error handling (404, 401, 429, timeout)
+- Area statistics via SalesTrends v3/v4
+- Comprehensive error handling (404, 401, 429, timeout, quota)
 
 **Methods**:
 ```python
-client = CoreLogicClient()
+client = AttomAPIClient()
 
 # Search property
-property_data = client.search_property("123 Main St, Miami, FL 33101")
+bundle = client.search_by_address(
+    street="123 Main St",
+    city="Miami",
+    state="FL",
+    postal_code="33101"
+)
 
 # Get detailed info
-details = client.get_property_details(clip_id)
+details = client.get_property_details(bundle.attom_id)
 
 # Find comparables
-comps = client.get_comparables(clip_id, radius_miles=1.0, max_results=10)
+comps = client.get_comparables(bundle.attom_id, radius_miles=1.0, max_results=10)
 
 # Get AVM estimate
-estimate = client.estimate_value(clip_id)
+estimate = client.get_avm(bundle.attom_id)
 ```
 
 **Data Returned**:
-- CLIP ID (CoreLogic Property ID)
-- Address details (street, city, state, zip, county)
-- Property characteristics (type, year built, bedrooms, bathrooms, sq ft, lot size)
-- Sale history (last sale date, price)
-- Assessed value
-- Comparable properties with similarity scores
+- ATTOM ID (property identifier)
+- Address + geo coordinates
+- Property characteristics (beds, baths, sqft, lot)
+- Ownership + assessment records
+- Sale history (date, price)
+- Comparable properties with distance + similarity
 - AVM valuation with confidence score and range
+- Area statistics (inventory, appreciation, DOM)
 
 ---
 
@@ -63,7 +69,7 @@ estimate = client.estimate_value(clip_id)
 **Role**: Senior Real Estate Market Analyst with 20 years experience
 
 **Capabilities**:
-- Property valuation using comps and AVM
+- Property valuation using ATTOM comps and AVM
 - Market trend analysis
 - Investment potential scoring (1-100)
 - Rental income estimation
@@ -114,7 +120,7 @@ insights = analyst.analyze_property(
 ```
 
 **Fallback Logic**:
-- If CoreLogic unavailable, generates basic estimates
+- If ATTOM unavailable, generates basic estimates
 - Uses square footage for rough valuation (~$200/sqft)
 - Provides limited analysis with clear warnings
 
@@ -194,7 +200,7 @@ Agent #1: Floor Plan Analyst
 - Status: processing → parsing_complete
       ↓
 Agent #2: Market Insights Analyst
-- Fetches CoreLogic data (comps, AVM)
+- Fetches ATTOM data (comps, AVM, trends)
 - Runs AI market analysis
 - Generates price estimate, investment score
 - Status: parsing_complete → enrichment_complete
@@ -239,28 +245,29 @@ workflow = chain(
 
 ## 🧪 Testing Infrastructure
 
-### CoreLogic Client Tests (`test_corelogic_client.py` - 300+ lines)
+### ATTOM Client Tests (`test_attom_client.py` - 400+ lines)
 
 **Test Coverage**:
-- ✅ Client initialization (with/without env vars)
-- ✅ OAuth2 token retrieval
-- ✅ Token caching and refresh
-- ✅ Property search (success and not found)
-- ✅ Property details retrieval
+- ✅ Client initialization (with/without API key)
+- ✅ Address search (success and not found)
+- ✅ Property detail retrieval
 - ✅ Comparables search
 - ✅ AVM estimation
+- ✅ Area trends (SalesTrends v3/v4)
 - ✅ Error handling (404, 401, 429, timeout)
-- ✅ Mocked API responses
+- ✅ Mocked API responses + normalization
 
 **Test Fixtures**:
 - `mock_env` - Environment variables
-- `mock_token_response` - OAuth2 response
-- `mock_property_search_response` - Property data
-- `client` - CoreLogic client instance
+- `mock_address_response` - ATTOM address lookup
+- `mock_detail_response` - ATTOM property detail
+- `mock_comps_response` - Comparable sales data
+- `mock_avm_response` - AVM estimate payload
+- `client` - Attom client instance
 
 **Run Tests**:
 ```bash
-docker exec -it ai-floorplan-backend pytest backend/tests/unit/test_corelogic_client.py -v
+docker exec -it ai-floorplan-backend pytest backend/tests/unit/test_attom_client.py -v
 ```
 
 ---
@@ -326,15 +333,14 @@ All agent outputs stored in `extracted_data` JSONB column:
 
 ## 🔐 Security & API Keys
 
-### Required Environment Variables
+# Required Environment Variables
 
 ```bash
-# CoreLogic API (required for Agent #2)
-CORELOGIC_CONSUMER_KEY=your_consumer_key
-CORELOGIC_CONSUMER_SECRET=your_consumer_secret
-
-# Google Gemini API (already configured)
+# Google Gemini API
 GOOGLE_GEMINI_API_KEY=your_api_key
+
+# ATTOM API (required for Agent #2)
+ATTOM_API_KEY=your_api_key
 ```
 
 ### Token Security
@@ -348,20 +354,20 @@ GOOGLE_GEMINI_API_KEY=your_api_key
 
 ## 💰 API Cost Considerations
 
-### CoreLogic API
+### ATTOM API
 
-**Pricing Model**: Per-request basis
+**Pricing Model**: Per-request basis (varies by endpoint)
 - Property Search: ~$0.10-0.25 per request
-- Property Details: ~$0.50-1.00 per request
-- Comparables: ~$1.00-2.00 per request
-- AVM: ~$0.50-1.00 per request
+- Property Details: ~$0.40-0.90 per request
+- Comparables: ~$0.80-1.80 per request
+- AVM: ~$0.40-0.90 per request
 
-**Cost per Property** (all 3 agents): ~$2.00-4.00
+**Cost per Property** (all 3 agents): ~$1.70-3.85
 
 **Mitigation Strategies**:
-1. Cache CoreLogic responses (not implemented yet)
+1. Cache ATTOM responses (deferred)
 2. Rate limit property uploads
-3. Use batch processing for multiple properties
+3. Batch related requests when possible
 4. Monitor usage via dashboard
 
 ### Gemini API
@@ -380,18 +386,18 @@ GOOGLE_GEMINI_API_KEY=your_api_key
 
 ### Production-Ready Components
 
-✅ CoreLogic API client (with error handling)  
+✅ ATTOM API client (with error handling)  
 ✅ AI Agent #2 (Market Insights Analyst)  
 ✅ AI Agent #3 (Listing Copywriter)  
 ✅ Celery task integration  
 ✅ Error handling and retries  
-✅ 30+ unit tests for CoreLogic client
+✅ 30+ unit tests for ATTOM client
 
 ### Not Yet Production-Ready
 
 ❌ Frontend UI for market insights display  
 ❌ Frontend UI for listing copy display  
-❌ CoreLogic response caching  
+❌ ATTOM response caching  
 ❌ Agent evaluation metrics  
 ❌ A/B testing for listing variations  
 ❌ Cost monitoring dashboard
@@ -428,7 +434,7 @@ GOOGLE_GEMINI_API_KEY=your_api_key
 | **Files Created** | 4 |
 | **Lines of Code** | ~1,500 |
 | **AI Agents** | 2 (total 3) |
-| **API Integrations** | 1 (CoreLogic) |
+| **API Integrations** | 1 (ATTOM) |
 | **Celery Tasks Updated** | 2 |
 | **Unit Tests** | 30+ |
 | **Pydantic Schemas** | 6 |
@@ -441,7 +447,7 @@ GOOGLE_GEMINI_API_KEY=your_api_key
 **Status**: ✅ **COMPLETE AND TESTED**
 
 All Phase 2 objectives achieved:
-- 2.1 CoreLogic API Client ✅
+- 2.1 ATTOM API Client ✅
 - 2.2 AI Agent #2: Market Insights Analyst ✅
 - 2.3 AI Agent #3: Listing Copywriter ✅
 - 2.4 Extended Async Workflow ✅

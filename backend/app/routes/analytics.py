@@ -337,9 +337,9 @@ def compare_properties():
             "property_a_id": "uuid",
             "property_b_id": "uuid",
             "differences": {
-                "bedrooms": 1,
-                "bathrooms": 0.5,
-                "sqft": 500
+                "bedroom_diff": 1,
+                "bathroom_diff": 0.5,
+                "sqft_diff": 500
             },
             "price_impact": {
                 "total_difference": 90000,
@@ -403,9 +403,9 @@ def compare_properties():
                 'total_sqft': features_b.total_sqft
             },
             'differences': {
-                'bedrooms': comparison.bedroom_diff,
-                'bathrooms': comparison.bathroom_diff,
-                'sqft': comparison.sqft_diff
+                'bedroom_diff': comparison.bedroom_diff,
+                'bathroom_diff': comparison.bathroom_diff,
+                'sqft_diff': comparison.sqft_diff
             },
             'price_impact': {
                 'total_difference': round(comparison.predicted_price_diff, 2),

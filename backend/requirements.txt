@@ -31,10 +31,12 @@ redis==5.0.3
 # ================================
 # AI & LLM (Phase 2+)
 # ================================
-google-generativeai==0.8.3
-crewai>=0.1.0,<1.0.0  # Use latest stable version (includes crewai_tools)
-langchain>=0.1.0
-langchain-google-genai>=1.0.0
+google-generativeai==0.4.1
+crewai==0.1.24  # Pinned to work with langchain 0.0.354
+crewai-tools>=0.1.0
+langchain==0.0.354
+langchain-google-genai==0.0.11
+litellm>=1.40.0
 
 # ================================
 # API Clients

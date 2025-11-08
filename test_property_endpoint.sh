@@ -1,30 +1,62 @@
 #!/bin/bash
-# Test different property endpoint patterns
+# Smoke-test ATTOM Property API endpoints
 
-source .env
+set -e
 
-# Get token
-TOKEN_RESPONSE=$(curl -s -X POST "https://api-prod.corelogic.com/oauth/token?grant_type=client_credentials" \
-  -u "$CORELOGIC_CONSUMER_KEY:$CORELOGIC_CONSUMER_SECRET" \
-  -H "Content-Length: 0")
-  
-TOKEN=$(echo "$TOKEN_RESPONSE" | python3 -c "import sys, json; print(json.load(sys.stdin).get('access_token', ''))" 2>/dev/null)
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | grep ATTOM | xargs)
+fi
 
-echo "Token: ${TOKEN:0:30}..."
+if [ -z "$ATTOM_API_KEY" ]; then
+  echo "❌ ATTOM_API_KEY missing from environment"
+  exit 1
+fi
+
+BASE_URL="https://api.gateway.attomdata.com/propertyapi/v1.0.0"
+ADDRESS1="1600 Amphitheatre Pkwy"
+ZIP="94043"
+
+echo "📍 Base URL: $BASE_URL"
+echo "🔑 API Key Prefix: ${ATTOM_API_KEY:0:8}..."
 echo ""
 
-# Test 1: Try property ID format from docs (06037:1081685)
-echo "Test 1: GET /property/06037:1081685"
-curl -s "https://api-prod.corelogic.com/property/06037:1081685" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Accept: application/json" | head -50
-echo ""
-echo "---"
+echo "Step 1: Address lookup"
+curl -s -G "$BASE_URL/property/address" \
+  --data-urlencode "address1=$ADDRESS1" \
+  --data-urlencode "postalcode=$ZIP" \
+  -H "apikey: $ATTOM_API_KEY" \
+  -H "Accept: application/json" | head -40
 
-# Test 2: Try with known LA address
-echo ""
-echo "Test 2: Try property search with address params"
-curl -s "https://api-prod.corelogic.com/property?streetAddress=919%20MALCOLM%20AVE&city=LOS%20ANGELES&state=CA&zipCode=90024" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Accept: application/json" | head -50
-echo ""
+echo "\n---"
+
+ATTOM_ID=$(curl -s -G "$BASE_URL/property/address" \
+  --data-urlencode "address1=$ADDRESS1" \
+  --data-urlencode "postalcode=$ZIP" \
+  -H "apikey: $ATTOM_API_KEY" \
+  -H "Accept: application/json" | python3 -c "import sys,json; data=json.load(sys.stdin); props=data.get('property') or []; print(props[0].get('identifier',{}).get('attomId','')) if props else ''" 2>/dev/null || echo "")
+
+if [ -n "$ATTOM_ID" ]; then
+  echo "📦 ATTOM ID: $ATTOM_ID"
+  echo "\nStep 2: Property detail"
+  curl -s -G "$BASE_URL/property/detail" \
+    --data-urlencode "attomid=$ATTOM_ID" \
+    -H "apikey: $ATTOM_API_KEY" \
+    -H "Accept: application/json" | head -40
+else
+  echo "⚠️  No ATTOM ID returned from address lookup"
+fi
+
+echo "\n---"
+
+if [ -n "$ATTOM_ID" ]; then
+  echo "Step 3: Comparable sales"
+  curl -s -G "$BASE_URL/property/detail/comparable" \
+    --data-urlencode "attomid=$ATTOM_ID" \
+    --data-urlencode "distance=1" \
+    --data-urlencode "propertytype=RES" \
+    --data-urlencode "sortby=Distance" \
+    --data-urlencode "page=1" \
+    --data-urlencode "pagesize=5" \
+    -H "apikey: $ATTOM_API_KEY" \
+    -H "Accept: application/json" | head -40
+fi

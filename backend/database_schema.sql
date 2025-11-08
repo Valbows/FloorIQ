@@ -64,17 +64,18 @@ CREATE TABLE IF NOT EXISTS public.market_insights (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES public.properties(id) ON DELETE CASCADE NOT NULL UNIQUE,
     
-    -- CoreLogic identifiers
-    clip_id TEXT,
+    -- ATTOM identifiers
+    attom_property_id TEXT,
     
-    -- CoreLogic data from AI Agent #2 (Market Insights Analyst)
-    corelogic_data JSONB DEFAULT '{}'::jsonb,
+    -- ATTOM market data bundle from AI Agent #2 (Market Insights Analyst)
+    attom_data JSONB DEFAULT '{}'::jsonb,
     -- Expected structure:
     -- {
-    --   "property_detail": {...},
-    --   "ownership": {...},
-    --   "tax_assessment": {...},
-    --   "last_sale": {...}
+    --   "property": {...},
+    --   "details": {...},
+    --   "avm": {...},
+    --   "area_stats": {...},
+    --   "sales_trends": {...}
     -- }
     
     -- Comparables data
@@ -284,5 +285,5 @@ GRANT INSERT ON public.view_analytics TO anon;
 -- VALUES ('user-uuid-here', 'agent@example.com', 'Jane Smith');
 
 COMMENT ON TABLE public.properties IS 'Central table storing all property listings with AI-extracted data';
-COMMENT ON TABLE public.market_insights IS 'Market data and price analysis from CoreLogic API';
+COMMENT ON TABLE public.market_insights IS 'Market data and price analysis powered by ATTOM API and AI enrichment';
 COMMENT ON TABLE public.view_analytics IS 'Tracking views of shared property reports';

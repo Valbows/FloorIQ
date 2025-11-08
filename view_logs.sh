@@ -12,7 +12,7 @@ echo "4. Redis logs"
 echo "5. All logs (combined)"
 echo "6. Follow Celery logs LIVE (best for debugging)"
 echo "7. Search Celery for 'market_insights'"
-echo "8. Search Celery for 'CoreLogic'"
+echo "8. Search Celery for 'ATTOM'"
 echo ""
 echo "================================"
 read -p "Enter option (1-8): " choice
@@ -64,9 +64,9 @@ case $choice in
     docker logs ai-floorplan-celery --tail 500 | grep -i "market_insights"
     ;;
   8)
-    echo "🔍 SEARCHING CELERY FOR 'CoreLogic':"
+    echo "🔍 SEARCHING CELERY FOR 'ATTOM':"
     echo "================================"
-    docker logs ai-floorplan-celery --tail 500 | grep -i "corelogic"
+    docker logs ai-floorplan-celery --tail 500 | grep -i "attom"
     ;;
   *)
     echo "Invalid option"

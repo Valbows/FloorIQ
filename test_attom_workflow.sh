@@ -1,13 +1,13 @@
 #!/bin/bash
 #
-# Test Phase 2 Workflow with CoreLogic API
+# Test Phase 2 Workflow with ATTOM API
 # This script tests the complete 3-agent pipeline with real market data
 #
 
 set -e
 
 echo "================================================================"
-echo "  Phase 2 Workflow Test - WITH CoreLogic Market Data"
+echo "  Phase 2 Workflow Test - WITH ATTOM Market Data"
 echo "================================================================"
 echo ""
 
@@ -133,10 +133,20 @@ if market:
     comps = market.get('comparable_properties', [])
     print(f"Comparables Found:  {len(comps)} properties")
     
-    if comps:
-        print("\n🏘️  Using REAL CoreLogic Market Data!")
+    data_sources = extracted.get('data_sources', {}) or {}
+    attom_flags = [
+        data_sources.get('attom_property'),
+        data_sources.get('attom_details'),
+        data_sources.get('attom_avm'),
+        data_sources.get('attom_area'),
+    ]
+
+    if any(attom_flags) or comps:
+        print("\n🏘️  Using ATTOM Market Data!")
+        if not any(attom_flags):
+            print("   (Comps present but ATTOM flags missing — verify enrichment)")
     else:
-        print("\n⚠️  Using Fallback Logic (CoreLogic unavailable)")
+        print("\n⚠️  Using Fallback Logic (ATTOM unavailable)")
     print()
 
 # Agent #3
