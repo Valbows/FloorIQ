@@ -1,0 +1,129 @@
+services:
+  - type: redis
+    name: flooriq-redis
+    plan: free
+
+  - type: web
+    name: flooriq-backend
+    env: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: gunicorn run:app --chdir backend --bind 0.0.0.0:$PORT
+    envVars:
+      - key: FLASK_CONFIG
+        value: production
+      - key: LOG_TO_STDOUT
+        value: "1"
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: flooriq-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: flooriq-redis
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: flooriq-redis
+          property: connectionString
+      - key: JWT_ACCESS_TOKEN_EXPIRES
+        value: "3600"
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "10"
+      - key: SECRET_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        sync: false
+      - key: ATTOM_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: SCRAPINGBEE_API_KEY
+        sync: false
+      - key: BRIGHTDATA_API_KEY
+        sync: false
+      - key: BRIGHTDATA_UNLOCKER_ZONE
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+
+  - type: worker
+    name: flooriq-celery
+    env: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: celery -A app.celery worker --loglevel=info --concurrency=2 --workdir backend
+    envVars:
+      - key: FLASK_CONFIG
+        value: production
+      - key: CELERY_BROKER_URL
+        fromService:
+          type: redis
+          name: flooriq-redis
+          property: connectionString
+      - key: CELERY_RESULT_BACKEND
+        fromService:
+          type: redis
+          name: flooriq-redis
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: flooriq-redis
+          property: connectionString
+      - key: JWT_ACCESS_TOKEN_EXPIRES
+        value: "3600"
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "10"
+      - key: SECRET_KEY
+        sync: false
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        sync: false
+      - key: ATTOM_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: SCRAPINGBEE_API_KEY
+        sync: false
+      - key: BRIGHTDATA_API_KEY
+        sync: false
+      - key: BRIGHTDATA_UNLOCKER_ZONE
+        sync: false
+      - key: GOOGLE_MAPS_API_KEY
+        sync: false
+
+  - type: static
+    name: flooriq-frontend
+    plan: free
+    buildCommand: npm install --prefix frontend && npm run build --prefix frontend
+    publishPath: frontend/dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_GOOGLE_MAPS_API_KEY
+        sync: false

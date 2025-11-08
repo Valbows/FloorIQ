@@ -4866,3 +4866,21 @@ Total Lines: ~1,300 added
 ```
 
 ---
+
+### 2025-11-08 17:40 EDT • Phase 5: Backend API Support for Analytics Dashboard → Render Deployment Enablement
+
+**Goal**: Prepare FloorIQ for Render blueprint deployments by defining automation-friendly infrastructure as code and documenting environment configuration.
+
+**Highlights**:
+- ✅ Added `render.yaml` at repo root defining Redis (free), Flask web service (`flooriq-backend`), Celery worker (`flooriq-celery`), and static frontend (`flooriq-frontend`).
+- ✅ Captured required secrets and configuration in `backend/.env.example` (Flask, Supabase, Redis, third-party APIs) and `frontend/.env.example` (Vite runtime variables).
+- ✅ Updated `plan.md` with deployment summary for Render.
+
+**Security / Compliance Notes**:
+- No secrets committed; placeholders and Render sync variables used for sensitive values per CIS/Owasp best practices.
+- Redis URLs referenced via Render service linking to avoid hardcoded credentials.
+
+**Next Actions**:
+1. Stage and commit `render.yaml`, `.env.example` files, and doc updates.
+2. Deploy blueprint via Render dashboard or CLI, providing actual environment values.
+3. Validate backend health check and update `VITE_API_URL` to deployed backend hostname.

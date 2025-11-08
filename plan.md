@@ -38,6 +38,10 @@
 - **Priority**: Accurate floor plan analysis (Google Vision + OCR) → Accurate market insights (multi-source data)
 - **Built With**: Windsurf AI Coding Agent
 
+### Deployment Updates (2025-11-08)
+- Render blueprint (`render.yaml`) defines Redis, Flask web service (`flooriq-backend`), Celery worker (`flooriq-celery`), and static frontend (`flooriq-frontend`) with shared environment configuration.
+- Backend and frontend `.env.example` templates now document all secrets, Supabase credentials, Redis URLs, and client-side Vite variables required for Render.
+
 ---
 
 ## NEW REQUIREMENTS - Phase 6: Advanced Analytics & Multi-Source Data ⏳ NEW
