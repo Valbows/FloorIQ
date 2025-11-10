@@ -7,8 +7,8 @@ services:
     name: flooriq-backend
     env: python
     plan: free
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: gunicorn run:app --chdir backend --bind 0.0.0.0:$PORT
+    buildCommand: bash -c 'if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; else pip install -r requirements.txt; fi'
+    startCommand: bash -c 'if [ -d backend ]; then cd backend; fi; gunicorn run:app --bind 0.0.0.0:$PORT'
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
@@ -68,8 +68,8 @@ services:
     name: flooriq-celery
     env: python
     plan: free
-    buildCommand: pip install -r backend/requirements.txt
-    startCommand: celery -A app.celery worker --loglevel=info --concurrency=2 --workdir backend
+    buildCommand: bash -c 'if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; else pip install -r requirements.txt; fi'
+    startCommand: bash -c 'if [ -d backend ]; then cd backend; fi; celery -A app.celery worker --loglevel=info --concurrency=2'
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
