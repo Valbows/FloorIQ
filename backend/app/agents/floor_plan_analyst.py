@@ -11,7 +11,7 @@ import requests
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
 from crewai import Agent, Task, Crew
-from crewai_tools import tool
+from app.utils.crewai_tool import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from app.parsing.parser import FloorPlanParser
 from litellm import completion as litellm_completion
