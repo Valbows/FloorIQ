@@ -5,7 +5,7 @@ Main application initialization and configuration
 
 import logging
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, redirect, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from celery import Celery
@@ -138,6 +138,22 @@ def create_app(config_name='development'):
     # Health Check Endpoint
     # ================================
     
+    @app.route('/', methods=['GET'])
+    def root():
+        """Provide a friendly root response and redirect browsers to the frontend."""
+        frontend_url = os.getenv('FRONTEND_URL')
+        accept = request.headers.get('Accept', '')
+
+        if frontend_url and 'text/html' in accept.lower():
+            return redirect(frontend_url, code=302)
+
+        return jsonify({
+            'service': 'AI Floor Plan Insights API',
+            'message': 'Backend API root. See frontend for UI.',
+            'frontendUrl': frontend_url,
+            'health': '/health'
+        }), 200
+
     @app.route('/health', methods=['GET'])
     def health_check():
         """Health check endpoint for Docker and monitoring"""
