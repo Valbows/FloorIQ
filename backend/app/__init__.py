@@ -58,7 +58,8 @@ def create_app(config_name='development'):
     # ================================
     
     # CORS - Allow frontend origins with proper headers
-    cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173').split(',')
+    cors_origins_raw = os.getenv('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173')
+    cors_origins = [origin.strip() for origin in cors_origins_raw.split(',') if origin.strip()]
     CORS(app, 
          origins=cors_origins, 
          supports_credentials=True,
@@ -73,9 +74,26 @@ def create_app(config_name='development'):
     @app.before_request
     def handle_preflight():
         """Allow OPTIONS requests to bypass JWT authentication for CORS preflight"""
-        from flask import request
         if request.method == "OPTIONS":
-            return '', 200
+            response = app.make_default_options_response()
+            origin = request.headers.get('Origin')
+            if origin and origin in cors_origins:
+                response.headers['Access-Control-Allow-Origin'] = origin
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+                response.headers['Vary'] = 'Origin'
+            return response
+
+    @app.after_request
+    def apply_cors_headers(response):
+        """Ensure CORS headers are included on all responses for allowed origins."""
+        origin = request.headers.get('Origin')
+        if origin and origin in cors_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            response.headers.setdefault('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+            response.headers.setdefault('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+            response.headers['Vary'] = 'Origin'
+        return response
     
     # Update Celery config
     celery.conf.update(app.config)
